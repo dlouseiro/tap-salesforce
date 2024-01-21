@@ -206,7 +206,8 @@ class Salesforce():
                  is_sandbox=None,
                  select_fields_by_default=None,
                  default_start_date=None,
-                 api_type=None):
+                 api_type=None,
+                 force_bulk_api_usage=None):
         self.api_type = api_type.upper() if api_type else None
         self.session = requests.Session()
         if isinstance(quota_percent_per_run, str) and quota_percent_per_run.strip() == '':
@@ -223,6 +224,7 @@ class Salesforce():
         self.jobs_completed = 0
         self.data_url = "{}/services/data/v53.0/{}"
         self.pk_chunking = False
+        self.force_bulk_api_usage = force_bulk_api_usage
 
         self.auth = SalesforceAuth.from_credentials(credentials, is_sandbox=self.is_sandbox)
 
@@ -355,10 +357,13 @@ class Salesforce():
             return query
 
     def query(self, catalog_entry, state):
-        if self.api_type == BULK_API_TYPE:
+        catalog_metadata = metadata.to_map(catalog_entry['metadata'])
+        has_bulk_api_unsupported_fields = catalog_metadata.get((), {}).get('has-bulk-api-unsupported-fields')
+
+        if self.api_type == BULK_API_TYPE and (self.force_bulk_api_usage or not(has_bulk_api_unsupported_fields)):
             bulk = Bulk(self)
             return bulk.query(catalog_entry, state)
-        elif self.api_type == REST_API_TYPE:
+        elif self.api_type == REST_API_TYPE or has_bulk_api_unsupported_fields:
             rest = Rest(self)
             return rest.query(catalog_entry, state)
         else:
@@ -367,10 +372,10 @@ class Salesforce():
                     self.api_type))
 
     def get_blacklisted_objects(self):
-        if self.api_type == BULK_API_TYPE:
+        if self.api_type == BULK_API_TYPE and self.force_bulk_api_usage:
             return UNSUPPORTED_BULK_API_SALESFORCE_OBJECTS.union(
                 QUERY_RESTRICTED_SALESFORCE_OBJECTS).union(QUERY_INCOMPATIBLE_SALESFORCE_OBJECTS)
-        elif self.api_type == REST_API_TYPE:
+        elif self.api_type == REST_API_TYPE or not self.force_bulk_api_usage:
             return QUERY_RESTRICTED_SALESFORCE_OBJECTS.union(QUERY_INCOMPATIBLE_SALESFORCE_OBJECTS)
         else:
             raise TapSalesforceException(
@@ -379,9 +384,9 @@ class Salesforce():
 
     # pylint: disable=line-too-long
     def get_blacklisted_fields(self):
-        if self.api_type == BULK_API_TYPE:
+        if self.api_type == BULK_API_TYPE and self.force_bulk_api_usage:
             return {('EntityDefinition', 'RecordTypesSupported'): "this field is unsupported by the Bulk API."}
-        elif self.api_type == REST_API_TYPE:
+        elif self.api_type == REST_API_TYPE or not self.force_bulk_api_usage:
             return {}
         else:
             raise TapSalesforceException(
