@@ -45,7 +45,8 @@ CONFIG = {
     'refresh_token': None,
     'client_id': None,
     'client_secret': None,
-    'start_date': None
+    'start_date': None,
+    'force_bulk_api_usage': False
 }
 
 FORCED_FULL_TABLE = {
@@ -174,6 +175,8 @@ def do_discover(sf: Salesforce, streams: list[str]):
 
         found_id_field = False
 
+        found_bulk_api_unsupported_field = False
+
         # Loop over the object's fields
         for f in fields:
             field_name = f['name']
@@ -186,13 +189,16 @@ def do_discover(sf: Salesforce, streams: list[str]):
                 f, mdata)
 
             # Compound Address fields cannot be queried by the Bulk API
-            if f['type'] == "address" and sf.api_type == tap_salesforce.salesforce.BULK_API_TYPE:
-                unsupported_fields.add(
-                    (field_name, 'cannot query compound address fields with bulk API'))
+            if field_type == "address" and sf.api_type == tap_salesforce.salesforce.BULK_API_TYPE:
+                if sf.force_bulk_api_usage:
+                    unsupported_fields.add(
+                        (field_name, 'cannot query compound address fields with bulk API'))
+
+                found_bulk_api_unsupported_field = True
 
             # we haven't been able to observe any records with a json field, so we
             # are marking it as unavailable until we have an example to work with
-            if f['type'] == "json":
+            if field_type == "json":
                 unsupported_fields.add(
                     (field_name, 'do not currently support json fields - please contact support'))
 
@@ -270,6 +276,7 @@ def do_discover(sf: Salesforce, streams: list[str]):
                     'reason': 'No replication keys found from the Salesforce API'})
 
         mdata = metadata.write(mdata, (), 'table-key-properties', key_properties)
+        mdata = metadata.write(mdata, (), 'has-bulk-api=unsupported-fields', [found_bulk_api_unsupported_field])
 
         schema = {
             'type': 'object',
@@ -285,6 +292,8 @@ def do_discover(sf: Salesforce, streams: list[str]):
         }
 
         entries.append(entry)
+
+        found_bulk_api_unsupported_field = False
 
     # For each custom setting field, remove its associated tag from entries
     # See Blacklisting.md for more information
