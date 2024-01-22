@@ -207,6 +207,7 @@ def do_discover(sf: Salesforce, streams: list[str]):
             if field_pair in sf.get_blacklisted_fields():
                 unsupported_fields.add(
                     (field_name, sf.get_blacklisted_fields()[field_pair]))
+                found_bulk_api_unsupported_field = True
 
             inclusion = metadata.get(
                 mdata, ('properties', field_name), 'inclusion')
