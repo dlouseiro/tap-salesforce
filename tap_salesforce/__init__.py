@@ -276,7 +276,7 @@ def do_discover(sf: Salesforce, streams: list[str]):
                     'reason': 'No replication keys found from the Salesforce API'})
 
         mdata = metadata.write(mdata, (), 'table-key-properties', key_properties)
-        mdata = metadata.write(mdata, (), 'has-bulk-api=unsupported-fields', [found_bulk_api_unsupported_field])
+        mdata = metadata.write(mdata, (), 'has-bulk-api-unsupported-fields', [found_bulk_api_unsupported_field])
 
         schema = {
             'type': 'object',
