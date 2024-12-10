@@ -365,7 +365,7 @@ class Salesforce():
 
         # if the state contains a bookmark, subtract the lookback window from the bookmark
         if bookmark_value and self.lookback_window:
-            sync_start_date = singer_utils.strftime(singer_utils.strptime_with_tz(sync_start_date) - datetime.timedelta(seconds=self.lookback_window))
+            sync_start_date = singer_utils.strftime(singer_utils.strptime_with_tz(sync_start_date) - timedelta(seconds=self.lookback_window))
 
         return sync_start_date
 
