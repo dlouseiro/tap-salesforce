@@ -13,7 +13,7 @@ LOGGER = singer.get_logger()
 
 
 class Bulk2:
-    bulk_url = "{}/services/data/v60.0/jobs/query"
+    bulk_url = "{}/services/data/{}/jobs/query"
 
     def __init__(self, sf):
         csv.field_size_limit(sys.maxsize)
@@ -30,7 +30,7 @@ class Bulk2:
         return {**self.sf.auth.rest_headers, "Content-Type": "application/json"}
 
     def _create_job(self, catalog_entry, state):
-        url = self.bulk_url.format(self.sf.instance_url)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version)
         start_date = self.sf.get_start_date(state, catalog_entry)
 
         query = self.sf._build_query_string(catalog_entry, start_date, order_by_clause=False)
@@ -50,7 +50,7 @@ class Bulk2:
 
     def _wait_for_job(self, job_id):
         status_url = self.bulk_url + "/{}"
-        url = status_url.format(self.sf.instance_url, job_id)
+        url = status_url.format(self.sf.instance_url, self.sf.api_version, job_id)
         status = None
 
         while status not in ("JobComplete", "Failed"):
@@ -67,7 +67,7 @@ class Bulk2:
 
     def _get_next_batch(self, job_id):
         url = self.bulk_url + "/{}/results"
-        url = url.format(self.sf.instance_url, job_id)
+        url = url.format(self.sf.instance_url, self.sf.api_version, job_id)
         locator = ""
 
         while locator != "null":

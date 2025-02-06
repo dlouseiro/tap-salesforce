@@ -226,7 +226,8 @@ class Salesforce:
                  select_fields_by_default=None,
                  default_start_date=None,
                  api_type=None,
-                 lookback_window=None):
+                 lookback_window=None,
+                 api_version=None):
         self.api_type = api_type.upper() if api_type else None
         self.session = requests.Session()
         if isinstance(quota_percent_per_run, str) and quota_percent_per_run.strip() == "":
@@ -242,9 +243,10 @@ class Salesforce:
         )
         self.rest_requests_attempted = 0
         self.jobs_completed = 0
-        self.data_url = "{}/services/data/v60.0/{}"
+        self.data_url = "{}/services/data/{}/{}"
         self.pk_chunking = False
         self.lookback_window = lookback_window
+        self.api_version=api_version
 
         self.auth = SalesforceAuth.from_credentials(credentials, is_sandbox=self.is_sandbox)
 
@@ -338,27 +340,27 @@ class Salesforce:
         if sobject is None:
             endpoint = "sobjects"
             endpoint_tag = "sobjects"
-            url = self.data_url.format(instance_url, endpoint)
+            url = self.data_url.format(instance_url, self.api_version, endpoint)
         elif isinstance(sobject, list):
             batch_length = len(sobject)
             if batch_length > 25:
                 raise TapSalesforceExceptionError(f"Composite limited to 25 sObjects per batch. ({batch_length}).")
             endpoint = "composite/batch"
             endpoint_tag = "CompositeBatch"
-            url = self.data_url.format(instance_url, endpoint)
+            url = self.data_url.format(instance_url, self.api_version, endpoint)
             method = "POST"
             headers["Content-Type"] = "application/json"
             composite_subrequests = []
             for obj in sobject:
                 sub_endpoint = f"sobjects/{obj}/describe"
-                sub_url = self.data_url.format("", sub_endpoint)
+                sub_url = self.data_url.format("", self.api_version, sub_endpoint)
                 subrequest = {"method": "GET", "url": sub_url}
                 composite_subrequests.append(subrequest)
             body = json.dumps({"batchRequests": composite_subrequests})
         else:
             endpoint = f"sobjects/{sobject}/describe"
             endpoint_tag = sobject
-            url = self.data_url.format(instance_url, endpoint)
+            url = self.data_url.format(instance_url, self.api_version, endpoint)
 
         with metrics.http_request_timer("describe") as timer:
             timer.tags["endpoint"] = endpoint_tag
