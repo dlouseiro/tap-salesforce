@@ -514,6 +514,8 @@ def main_impl():
         # get lookback window from config
         lookback_window = CONFIG.get('lookback_window')
         lookback_window = int(lookback_window) if lookback_window else None
+        api_version = CONFIG.get('api_version')
+        api_version = api_version if api_version else "v60.0"
         sf = Salesforce(
             credentials=credentials,
             quota_percent_total=CONFIG.get('quota_percent_total'),
@@ -522,7 +524,8 @@ def main_impl():
             select_fields_by_default=CONFIG.get('select_fields_by_default'),
             default_start_date=CONFIG.get('start_date'),
             api_type=CONFIG.get('api_type'),
-            lookback_window=lookback_window)
+            lookback_window=lookback_window,
+        api_version=api_version)
         sf.login()
 
         if args.discover:

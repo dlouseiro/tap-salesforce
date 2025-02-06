@@ -60,7 +60,8 @@ pip install git+https://github.com/MeltanoLabs/tap-salesforce.git
   "state_message_threshold": 1000,
   "max_workers": 8,
   "streams_to_discover": ["Lead", "LeadHistory"],
-  "lookback_window": 10
+  "lookback_window": 10,
+  "api_version": "v60.0"
 }
 ```
 
@@ -79,6 +80,8 @@ By default, discovery is handled for all existing streams, which can take severa
 The disadvantage is that you have to keep this list in sync with the `select` section, where you specify all properties(each ending up in a table column).
 
 The `lookback_window` (in seconds) subtracts the desired amount of seconds from the bookmark to sync past data. Recommended value: 10 seconds.
+
+The `api_version` defines the version of the Salesforce API to use. Default: v60.0.
 
 ## Run Discovery
 
