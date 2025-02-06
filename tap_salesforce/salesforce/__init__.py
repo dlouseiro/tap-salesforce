@@ -188,10 +188,8 @@ def field_to_property_schema(field, mdata):  # noqa: C901
         }
     elif sf_type in ("int", "long"):
         property_schema["type"] = "integer"
-    elif sf_type == "time":
+    elif sf_type == "time" or sf_type in LOOSE_TYPES:
         property_schema["type"] = "string"
-    elif sf_type in LOOSE_TYPES:
-        property_schema['type'] = "string"
     elif sf_type in BINARY_TYPES:
         mdata = metadata.write(mdata, ("properties", field_name), "inclusion", "unsupported")
         mdata = metadata.write(mdata, ("properties", field_name), "unsupported-description", "binary data")
@@ -217,17 +215,19 @@ def field_to_property_schema(field, mdata):  # noqa: C901
 
 class Salesforce:
     # pylint: disable=too-many-instance-attributes,too-many-arguments
-    def __init__(self,
-                 credentials=None,
-                 token=None,
-                 quota_percent_per_run=None,
-                 quota_percent_total=None,
-                 is_sandbox=None,
-                 select_fields_by_default=None,
-                 default_start_date=None,
-                 api_type=None,
-                 lookback_window=None,
-                 api_version=None):
+    def __init__(
+        self,
+        credentials=None,
+        token=None,
+        quota_percent_per_run=None,
+        quota_percent_total=None,
+        is_sandbox=None,
+        select_fields_by_default=None,
+        default_start_date=None,
+        api_type=None,
+        lookback_window=None,
+        api_version=None,
+    ):
         self.api_type = api_type.upper() if api_type else None
         self.session = requests.Session()
         if isinstance(quota_percent_per_run, str) and quota_percent_per_run.strip() == "":
@@ -246,7 +246,7 @@ class Salesforce:
         self.data_url = "{}/services/data/{}/{}"
         self.pk_chunking = False
         self.lookback_window = lookback_window
-        self.api_version=api_version
+        self.api_version = api_version
 
         self.auth = SalesforceAuth.from_credentials(credentials, is_sandbox=self.is_sandbox)
 
@@ -391,12 +391,14 @@ class Salesforce:
         replication_key = catalog_metadata.get((), {}).get("replication-key")
 
         # get bookmark value from the state
-        bookmark_value = singer.get_bookmark(state, catalog_entry['tap_stream_id'], replication_key)
+        bookmark_value = singer.get_bookmark(state, catalog_entry["tap_stream_id"], replication_key)
         sync_start_date = bookmark_value or self.default_start_date
 
         # if the state contains a bookmark, subtract the lookback window from the bookmark
         if bookmark_value and self.lookback_window:
-            sync_start_date = singer_utils.strftime(singer_utils.strptime_with_tz(sync_start_date) - timedelta(seconds=self.lookback_window))
+            sync_start_date = singer_utils.strftime(
+                singer_utils.strptime_with_tz(sync_start_date) - timedelta(seconds=self.lookback_window)
+            )
 
         return sync_start_date
 

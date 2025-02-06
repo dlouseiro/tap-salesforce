@@ -512,20 +512,21 @@ def main_impl():
     sf = None
     try:
         # get lookback window from config
-        lookback_window = CONFIG.get('lookback_window')
+        lookback_window = CONFIG.get("lookback_window")
         lookback_window = int(lookback_window) if lookback_window else None
-        api_version = CONFIG.get('api_version')
+        api_version = CONFIG.get("api_version")
         api_version = api_version if api_version else "v60.0"
         sf = Salesforce(
             credentials=credentials,
-            quota_percent_total=CONFIG.get('quota_percent_total'),
-            quota_percent_per_run=CONFIG.get('quota_percent_per_run'),
-            is_sandbox=CONFIG.get('is_sandbox'),
-            select_fields_by_default=CONFIG.get('select_fields_by_default'),
-            default_start_date=CONFIG.get('start_date'),
-            api_type=CONFIG.get('api_type'),
+            quota_percent_total=CONFIG.get("quota_percent_total"),
+            quota_percent_per_run=CONFIG.get("quota_percent_per_run"),
+            is_sandbox=CONFIG.get("is_sandbox"),
+            select_fields_by_default=CONFIG.get("select_fields_by_default"),
+            default_start_date=CONFIG.get("start_date"),
+            api_type=CONFIG.get("api_type"),
             lookback_window=lookback_window,
-        api_version=api_version)
+            api_version=api_version,
+        )
         sf.login()
 
         if args.discover:
