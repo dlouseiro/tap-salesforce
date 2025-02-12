@@ -113,7 +113,7 @@ def build_state(raw_state, catalog):
 
 
 # pylint: disable=undefined-variable
-def create_property_schema(field, mdata):
+def create_property_schema(field, mdata, sf):
     field_name = field["name"]
 
     if field_name == "Id":
@@ -121,7 +121,9 @@ def create_property_schema(field, mdata):
     else:
         mdata = metadata.write(mdata, ("properties", field_name), "inclusion", "available")
 
-    property_schema, mdata = tap_salesforce.salesforce.field_to_property_schema(field, mdata)
+    property_schema, mdata = tap_salesforce.salesforce.field_to_property_schema(
+        field, mdata, sf.ignore_formula_fields, sf.ignore_lookup_fields
+    )
 
     return (property_schema, mdata)
 
