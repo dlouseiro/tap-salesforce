@@ -199,7 +199,7 @@ def do_discover(sf: Salesforce, streams: list[str]):  # noqa: C901
                 if field_name == "Id":
                     found_id_field = True
 
-                property_schema, mdata = create_property_schema(f, mdata)
+                property_schema, mdata = create_property_schema(f, mdata, sf)
 
                 # Compound Address fields cannot be queried by the Bulk API
                 if f["type"] in ("address", "location") and sf.api_type in [
@@ -528,6 +528,8 @@ def main_impl():
             api_type=CONFIG.get("api_type"),
             lookback_window=lookback_window,
             api_version=api_version,
+            ignore_formula_fields=CONFIG.get("ignore_formula_fields", False),
+            ignore_lookup_fields=CONFIG.get("ignore_lookup_fields", False),
         )
         sf.login()
 
