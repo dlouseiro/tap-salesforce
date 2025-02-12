@@ -122,7 +122,7 @@ def create_property_schema(field, mdata, sf):
         mdata = metadata.write(mdata, ("properties", field_name), "inclusion", "available")
 
     property_schema, mdata = tap_salesforce.salesforce.field_to_property_schema(
-        field, mdata, sf.ignore_formula_fields, sf.ignore_lookup_fields
+        field, mdata, sf.ignore_formula_fields
     )
 
     return (property_schema, mdata)
@@ -528,7 +528,6 @@ def main_impl():
             lookback_window=lookback_window,
             api_version=api_version,
             ignore_formula_fields=CONFIG.get("ignore_formula_fields", False),
-            ignore_lookup_fields=CONFIG.get("ignore_lookup_fields", False),
         )
         sf.login()
 

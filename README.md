@@ -57,7 +57,6 @@ pip install git+https://github.com/MeltanoLabs/tap-salesforce.git
 ```
 {
   "ignore_formula_fields": false,
-  "ignore_lookup_fields": false,
   "start_date": "2017-11-02T00:00:00Z",
   "state_message_threshold": 1000,
   "max_workers": 8,
@@ -86,8 +85,6 @@ The `lookback_window` (in seconds) subtracts the desired amount of seconds from 
 The `api_version` defines the version of the Salesforce API to use. Default: v60.0.
 
 The `ignore_formula_fields` flag excludes Salesforce formula fields from synchronization. Formula fields are computed dynamically and don't trigger LastModifiedDate updates when their values change. This can lead to inconsistencies during incremental syncs, as changes won't be detected. Consider handling these calculations in your transformation layer instead. Default: false.
-
-The `ignore_lookup_fields` flag excludes Salesforce lookup (reference) fields from synchronization. When referenced records change, the lookup field's parent record LastModifiedDate remains unchanged. For better data consistency, sync the referenced objects directly and manage relationships in your transformation layer. Default: false.
 
 ## Run Discovery
 
