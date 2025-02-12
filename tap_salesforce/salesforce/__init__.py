@@ -158,7 +158,7 @@ def raise_for_status(resp):
         resp.raise_for_status()
 
 
-def field_to_property_schema(field, mdata, ignore_formula_fields=False, ignore_lookup_fields=False):  # noqa: C901
+def field_to_property_schema(field, mdata, ignore_formula_fields=False):  # noqa: C901
     property_schema = {}
 
     field_name = field["name"]
@@ -173,15 +173,6 @@ def field_to_property_schema(field, mdata, ignore_formula_fields=False, ignore_l
         )
         return property_schema, mdata
 
-    # Skip lookup fields if ignore_lookup_fields is True
-    if ignore_lookup_fields and field.get("type") == "reference":
-        mdata = metadata.write(mdata, ("properties", field_name), "selected-by-default", False)
-        mdata = metadata.write(mdata, ("properties", field_name), "selected", False)
-        mdata = metadata.write(mdata, ("properties", field_name), "inclusion", "unsupported")
-        mdata = metadata.write(
-            mdata, ("properties", field_name), "unsupported-description", "lookup field excluded by configuration"
-        )
-        return property_schema, mdata
     sf_type = field["type"]
 
     if sf_type in STRING_TYPES:
@@ -248,7 +239,6 @@ class Salesforce:
         lookback_window=None,
         api_version=None,
         ignore_formula_fields=False,
-        ignore_lookup_fields=False,
     ):
         self.api_type = api_type.upper() if api_type else None
         self.session = requests.Session()
@@ -264,7 +254,6 @@ class Salesforce:
             isinstance(select_fields_by_default, str) and select_fields_by_default.lower() == "true"
         )
         self.ignore_formula_fields = ignore_formula_fields
-        self.ignore_lookup_fields = ignore_lookup_fields
         self.rest_requests_attempted = 0
         self.jobs_completed = 0
         self.data_url = "{}/services/data/{}/{}"
