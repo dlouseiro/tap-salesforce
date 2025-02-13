@@ -160,7 +160,8 @@ class Bulk:
         return batch_status
 
     def _create_job(self, catalog_entry, pk_chunking=False):
-        url = self.bulk_url.format(self.sf.instance_url, "job")
+        endpoint = "job"
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
         body = {
             "operation": "queryAll",
             "object": catalog_entry["stream"],
