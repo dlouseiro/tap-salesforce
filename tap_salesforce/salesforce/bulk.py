@@ -161,7 +161,7 @@ class Bulk:
 
     def _create_job(self, catalog_entry, pk_chunking=False):
         endpoint = "job"
-        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
         body = {
             "operation": "queryAll",
             "object": catalog_entry["stream"],
@@ -191,7 +191,7 @@ class Bulk:
 
     def _add_batch(self, catalog_entry, job_id, start_date, order_by_clause=True):
         endpoint = f"job/{job_id}/batch"
-        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
 
         body = self.sf._build_query_string(catalog_entry, start_date, order_by_clause=order_by_clause)
 
@@ -233,7 +233,7 @@ class Bulk:
     def job_exists(self, job_id):
         try:
             endpoint = f"job/{job_id}"
-            url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+            url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
             headers = self._get_bulk_headers()
 
             with metrics.http_request_timer("get_job"):
@@ -250,7 +250,7 @@ class Bulk:
 
     def _get_batches(self, job_id):
         endpoint = f"job/{job_id}/batch"
-        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
         headers = self._get_bulk_headers()
 
         with metrics.http_request_timer("get_batches"):
@@ -262,7 +262,7 @@ class Bulk:
 
     def _get_batch(self, job_id, batch_id):
         endpoint = f"job/{job_id}/batch/{batch_id}"
-        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
         headers = self._get_bulk_headers()
 
         with metrics.http_request_timer("get_batch"):
@@ -277,7 +277,7 @@ class Bulk:
         CSV lines yielding each line as a record."""
         headers = self._get_bulk_headers()
         endpoint = f"job/{job_id}/batch/{batch_id}/result"
-        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
 
         with metrics.http_request_timer("batch_result_list") as timer:
             timer.tags["sobject"] = catalog_entry["stream"]
@@ -292,7 +292,7 @@ class Bulk:
 
         for result in batch_result_list["result"]:
             endpoint = f"job/{job_id}/batch/{batch_id}/result/{result}"
-            url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+            url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
             headers["Content-Type"] = "text/csv"
 
             with tempfile.NamedTemporaryFile(mode="w+", encoding="utf8") as csv_file:
@@ -313,7 +313,7 @@ class Bulk:
 
     def _close_job(self, job_id):
         endpoint = f"job/{job_id}"
-        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
+        url = self.bulk_url.format(self.sf.instance_url, self.sf.api_version.lstrip('v'), endpoint)
         body = {"state": "Closed"}
 
         with metrics.http_request_timer("close_job"):
