@@ -62,7 +62,10 @@ pip install git+https://github.com/MeltanoLabs/tap-salesforce.git
   "max_workers": 8,
   "streams_to_discover": ["Lead", "LeadHistory"],
   "lookback_window": 10,
-  "api_version": "v60.0"
+  "api_version": "v60.0",
+  "soql_filters": {
+    "Product2": "RecordType.DeveloperName = 'SomeRecordType'"
+  }
 }
 ```
 
@@ -85,6 +88,16 @@ The `lookback_window` (in seconds) subtracts the desired amount of seconds from 
 The `api_version` defines the version of the Salesforce API to use. Default: v60.0.
 
 The `ignore_formula_fields` flag excludes Salesforce formula fields from synchronization. Formula fields are computed dynamically and don't trigger LastModifiedDate updates when their values change. This can lead to inconsistencies during incremental syncs, as changes won't be detected. Consider handling these calculations in your transformation layer instead. Default: false.
+
+The `soql_filters` option allows you to specify additional SOQL filters per stream/object. These filters are appended to the WHERE clause and combined with the replication window when present.
+
+Example:
+
+```
+"soql_filters": {
+  "Product2": "RecordType.DeveloperName = 'SomeRecordType'"
+}
+```
 
 ## Run Discovery
 

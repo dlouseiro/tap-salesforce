@@ -52,6 +52,7 @@ CONFIG = {
     "client_id": None,
     "client_secret": None,
     "start_date": None,
+    "soql_filters": None,
 }
 
 FORCED_FULL_TABLE = {
@@ -121,9 +122,7 @@ def create_property_schema(field, mdata, sf):
     else:
         mdata = metadata.write(mdata, ("properties", field_name), "inclusion", "available")
 
-    property_schema, mdata = tap_salesforce.salesforce.field_to_property_schema(
-        field, mdata, sf.ignore_formula_fields
-    )
+    property_schema, mdata = tap_salesforce.salesforce.field_to_property_schema(field, mdata, sf.ignore_formula_fields)
 
     return (property_schema, mdata)
 
@@ -528,6 +527,7 @@ def main_impl():
             lookback_window=lookback_window,
             api_version=api_version,
             ignore_formula_fields=CONFIG.get("ignore_formula_fields", False),
+            soql_filters=CONFIG.get("soql_filters") or {},
         )
         sf.login()
 
