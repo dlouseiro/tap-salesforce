@@ -239,6 +239,7 @@ class Salesforce:
         lookback_window=None,
         api_version=None,
         ignore_formula_fields=False,
+        soql_filters=None,
     ):
         self.api_type = api_type.upper() if api_type else None
         self.session = requests.Session()
@@ -254,6 +255,7 @@ class Salesforce:
             isinstance(select_fields_by_default, str) and select_fields_by_default.lower() == "true"
         )
         self.ignore_formula_fields = ignore_formula_fields
+        self.soql_filters = soql_filters or {}
         self.rest_requests_attempted = 0
         self.jobs_completed = 0
         self.data_url = "{}/services/data/{}/{}"
@@ -423,17 +425,28 @@ class Salesforce:
         catalog_metadata = metadata.to_map(catalog_entry["metadata"])
         replication_key = catalog_metadata.get((), {}).get("replication-key")
 
+        # Apply optional user-provided SOQL filter for this stream
+        user_filter = None
+        if isinstance(self.soql_filters, dict):
+            user_filter = self.soql_filters.get(catalog_entry["stream"])  # conditions only, no leading WHERE
+
+        clauses = []
+        if user_filter:
+            clauses.append(f"({user_filter})")
+
         if replication_key:
-            where_clause = f" WHERE {replication_key} >= {start_date} "
-            end_date_clause = f" AND {replication_key} < {end_date}" if end_date else ""
+            window = f"{replication_key} >= {start_date}"
+            if end_date:
+                window += f" AND {replication_key} < {end_date}"
+            clauses.append(f"({window})")
 
-            order_by = f" ORDER BY {replication_key} ASC"
-            if order_by_clause:
-                return query + where_clause + end_date_clause + order_by
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
 
-            return query + where_clause + end_date_clause
-        else:
-            return query
+        if replication_key and order_by_clause:
+            query += f" ORDER BY {replication_key} ASC"
+
+        return query
 
     def query(self, catalog_entry, state):
         if self.api_type == BULK_API_TYPE:
