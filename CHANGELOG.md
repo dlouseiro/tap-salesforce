@@ -1,5 +1,39 @@
 # Changelog
 
+## meltano.1.7.0
+
+  * Raise the minimum supported Python version to **3.10** (from an
+    unenforced, undeclared floor). `setup.py` now declares
+    `python_requires=">=3.10"`. Verified against 3.10, 3.11, 3.12, and 3.13
+    (a full test-suite run + a real end-to-end sync against a Salesforce
+    sandbox on each).
+  * Upgrade all direct dependencies to their latest versions as of this
+    release: `requests` 2.32.2 → 2.34.2, `singer-python` `~=5.13` → `~=6.8`,
+    `xmltodict` 0.11.0 → 1.0.4, `idna` 3.7 → 3.18. `cryptography` and
+    `pyOpenSSL` were already unpinned and pick up their latest compatible
+    releases automatically.
+    - `singer-python` 6.x renamed `write_bookmark`/`get_bookmark` internals
+      but kept both names as fully-compatible aliases — verified by
+      introspecting the installed package; no code changes needed.
+      `set_version`/`get_version`/`clear_version` had a breaking signature
+      change in 6.7.0, but this tap never used those functions.
+    - `xmltodict` 1.0 output shapes were verified against every call site in
+      `bulk.py`, including the `force_list` single-vs-multi-child edge case
+      that's the classic regression risk for this kind of upgrade.
+    - Removed the now-obsolete `idna==3.7` pin comment referencing an old
+      `requests`/`idna` conflict (meltano/meltano#193) — a fresh install
+      with the upgraded pins has no dependency conflicts (`pip check` clean).
+  * Add a `test` extra (`pip install -e .[test]`) providing `pytest`. Fixes
+    `.circleci/config.yml`, which previously installed `nose` — long
+    unmaintained and broken on Python 3.10+ (it references
+    `collections.Callable`, removed in 3.10) — replaced with `pytest`.
+  * Bump `ruff`'s `target-version` from `py37` to `py310`, surfacing two
+    findings: modernized a `typing.Sequence` import to `collections.abc`,
+    and added an explicit `strict=False` to a `zip()` call in `bulk.py`'s
+    CSV row parsing (preserves existing tolerant behaviour for
+    malformed/truncated rows rather than silently changing it to a hard
+    failure).
+
 ## meltano.1.6.0
 
   * Upgrade `simple-salesforce` from `<1.0` to `~=1.12`. Adapted the

@@ -5,7 +5,6 @@ login page). We cover the helpers that are testable in isolation.
 """
 
 import base64
-import contextlib
 import hashlib
 import http.client
 import http.server
@@ -155,18 +154,16 @@ class AcquireTokenTests(unittest.TestCase):
     """
 
     def test_uses_cached_refresh_token_without_opening_browser(self):
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(patch.object(browser_auth, "load_refresh_token", return_value="cached-rt"))
-            mock_exchange = stack.enter_context(
-                patch.object(
-                    browser_auth,
-                    "_exchange_refresh_token",
-                    return_value={"access_token": "at-cached", "instance_url": "https://inst"},
-                )
-            )
-            mock_browser = stack.enter_context(patch.object(browser_auth, "_run_browser_flow"))
-            mock_store = stack.enter_context(patch.object(browser_auth, "store_refresh_token"))
-
+        with (
+            patch.object(browser_auth, "load_refresh_token", return_value="cached-rt"),
+            patch.object(
+                browser_auth,
+                "_exchange_refresh_token",
+                return_value={"access_token": "at-cached", "instance_url": "https://inst"},
+            ) as mock_exchange,
+            patch.object(browser_auth, "_run_browser_flow") as mock_browser,
+            patch.object(browser_auth, "store_refresh_token") as mock_store,
+        ):
             token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
 
         mock_exchange.assert_called_once_with("ci", "cached-rt", "picnic-nl.my")
@@ -179,24 +176,20 @@ class AcquireTokenTests(unittest.TestCase):
         # Mirrors what Salesforce returns for an expired/revoked refresh token:
         # 400 invalid_grant, surfaced by requests as an HTTPError.
         rejection = requests.HTTPError("400 Client Error: invalid_grant")
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(patch.object(browser_auth, "load_refresh_token", return_value="stale-rt"))
-            mock_exchange = stack.enter_context(
-                patch.object(browser_auth, "_exchange_refresh_token", side_effect=rejection)
-            )
-            mock_browser = stack.enter_context(
-                patch.object(
-                    browser_auth,
-                    "_run_browser_flow",
-                    return_value={
-                        "access_token": "at-fresh",
-                        "instance_url": "https://inst",
-                        "refresh_token": "fresh-rt",
-                    },
-                )
-            )
-            mock_store = stack.enter_context(patch.object(browser_auth, "store_refresh_token"))
-
+        with (
+            patch.object(browser_auth, "load_refresh_token", return_value="stale-rt"),
+            patch.object(browser_auth, "_exchange_refresh_token", side_effect=rejection) as mock_exchange,
+            patch.object(
+                browser_auth,
+                "_run_browser_flow",
+                return_value={
+                    "access_token": "at-fresh",
+                    "instance_url": "https://inst",
+                    "refresh_token": "fresh-rt",
+                },
+            ) as mock_browser,
+            patch.object(browser_auth, "store_refresh_token") as mock_store,
+        ):
             token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
 
         mock_exchange.assert_called_once_with("ci", "stale-rt", "picnic-nl.my")
@@ -207,22 +200,20 @@ class AcquireTokenTests(unittest.TestCase):
         self.assertEqual(token.refresh_token, "fresh-rt")
 
     def test_goes_straight_to_browser_when_nothing_cached(self):
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(patch.object(browser_auth, "load_refresh_token", return_value=None))
-            mock_exchange = stack.enter_context(patch.object(browser_auth, "_exchange_refresh_token"))
-            mock_browser = stack.enter_context(
-                patch.object(
-                    browser_auth,
-                    "_run_browser_flow",
-                    return_value={
-                        "access_token": "at-new",
-                        "instance_url": "https://inst",
-                        "refresh_token": "new-rt",
-                    },
-                )
-            )
-            mock_store = stack.enter_context(patch.object(browser_auth, "store_refresh_token"))
-
+        with (
+            patch.object(browser_auth, "load_refresh_token", return_value=None),
+            patch.object(browser_auth, "_exchange_refresh_token") as mock_exchange,
+            patch.object(
+                browser_auth,
+                "_run_browser_flow",
+                return_value={
+                    "access_token": "at-new",
+                    "instance_url": "https://inst",
+                    "refresh_token": "new-rt",
+                },
+            ) as mock_browser,
+            patch.object(browser_auth, "store_refresh_token") as mock_store,
+        ):
             token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
 
         mock_exchange.assert_not_called()
