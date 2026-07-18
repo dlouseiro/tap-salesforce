@@ -258,7 +258,9 @@ def acquire_token(
     Behaviour:
 
     1. If a refresh token is cached for ``(domain, client_id)``, silently
-       exchange it for a fresh access token and return.
+       exchange it for a fresh access token and return. If the refresh grant
+       response includes a new refresh token (some External Client App
+       policies rotate it on every use), the cache is updated with it.
     2. Otherwise — or if the cached refresh token is rejected by Salesforce —
        open the user's browser, complete the Authorization Code Flow with
        PKCE, cache the new refresh token, and return the access token.
@@ -279,10 +281,17 @@ def acquire_token(
     if cached_refresh_token is not None:
         try:
             body = _exchange_refresh_token(client_id, cached_refresh_token, domain)
+            # Some External Client App refresh token policies rotate the
+            # refresh token on every use. If Salesforce returned a new one,
+            # persist it -- otherwise the cache would silently go stale after
+            # a single reuse, forcing a full browser round-trip next time.
+            rotated_refresh_token = body.get("refresh_token")
+            if rotated_refresh_token and rotated_refresh_token != cached_refresh_token:
+                store_refresh_token(cache_dir, domain, client_id, rotated_refresh_token)
             return AcquiredToken(
                 access_token=body["access_token"],
                 instance_url=body["instance_url"],
-                refresh_token=cached_refresh_token,
+                refresh_token=rotated_refresh_token or cached_refresh_token,
             )
         except requests.HTTPError as e:
             LOGGER.warning("Cached refresh token rejected (%s); falling back to browser flow", e)
