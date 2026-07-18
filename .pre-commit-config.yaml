@@ -1,39 +1,60 @@
 ci:
   autofix_prs: false
   autoupdate_schedule: monthly
-  autoupdate_commit_msg: 'chore: pre-commit autoupdate'
+  autoupdate_commit_msg: "chore: pre-commit autoupdate"
 
 repos:
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v6.0.0
-  hooks:
-  - id: check-json
-  - id: check-toml
-    exclude: |
-        (?x)^(
-            copier_template/.*/pyproject.toml
-        )$
-  - id: end-of-file-fixer
-    exclude: (copier_template/.*|docs/.*|samples/.*\.json)
-  - id: trailing-whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-json
+      - id: check-toml
+        exclude: |
+          (?x)^(
+              copier_template/.*/pyproject.toml
+          )$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: end-of-file-fixer
+        exclude: (copier_template/.*|docs/.*|samples/.*\.json)
+      - id: trailing-whitespace
 
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.22
-  hooks:
-  - id: ruff
-    args: [--fix]
-  - id: ruff-format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
 
-# Full test + lint suite across the supported Python matrix (same commands
-# CI runs, via tox.ini). Deliberately scoped to `pre-push`, not every
-# commit -- running 4 Python environments' worth of tests on every commit
-# would be too slow for fast local iteration. Requires `poetry install
-# --with dev` to have been run at least once.
-- repo: local
-  hooks:
-  - id: tox
-    name: tox (full test + lint suite, matches CI)
-    entry: poetry run tox
-    language: system
-    pass_filenames: false
-    stages: [pre-push]
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [json, yaml, markdown]
+        exclude: (poetry\.lock|copier_template/.*)
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: [--strict]
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.44.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+
+  # Full test + lint suite across the supported Python matrix (same commands
+  # CI runs, via tox.ini). Deliberately scoped to `pre-push`, not every
+  # commit -- running 4 Python environments' worth of tests on every commit
+  # would be too slow for fast local iteration. Requires `poetry install
+  # --with dev` to have been run at least once.
+  - repo: local
+    hooks:
+      - id: tox
+        name: tox (full test + lint suite, matches CI)
+        entry: poetry run tox
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

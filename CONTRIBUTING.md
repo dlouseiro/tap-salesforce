@@ -41,6 +41,7 @@ it can't find.
 ### Git hooks
 
 Pre-commit is configured with two speeds:
+
 - **On every `git commit`** — `ruff check --fix`, `ruff format`, file hygiene (fast).
 - **On every `git push`** — the full `tox` suite (slower, matches CI).
 
@@ -77,8 +78,8 @@ All three refer to the same release, formatted for their respective audiences (p
 
 ### When to bump what
 
-| Change type | Version bump | Example |
-|---|---|---|
-| Breaking config/API change | Major (`X.0.0`) | Removing a config key, changing required fields |
-| New feature, backward compatible | Minor (`0.X.0`) | New auth method, new config option |
-| Bug fix, docs, internal refactor | Patch (`0.0.X`) | Fix a sync bug, update README |
+| Change type                      | Version bump    | Example                                         |
+| -------------------------------- | --------------- | ----------------------------------------------- |
+| Breaking config/API change       | Major (`X.0.0`) | Removing a config key, changing required fields |
+| New feature, backward compatible | Minor (`0.X.0`) | New auth method, new config option              |
+| Bug fix, docs, internal refactor | Patch (`0.0.X`) | Fix a sync bug, update README                   |

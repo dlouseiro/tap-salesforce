@@ -21,6 +21,23 @@ jobs:
       - name: tox -e lint
         run: tox -e lint
 
+  format-lint:
+    name: Format & lint (prettier, yamllint, markdownlint, via tox)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install tox
+        run: pip install tox
+      - name: tox -e format
+        run: tox -e format
+
   test:
     name: Test (Python ${{ matrix.python-version }}, via tox)
     runs-on: ubuntu-latest
@@ -50,18 +67,21 @@ jobs:
       - name: Check version and changelog are in sync
         run: |
           # Get version from pyproject.toml on this branch
-          PR_VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+          PR_VERSION=$(grep -m1 '^version' pyproject.toml \
+            | sed 's/.*"\(.*\)"/\1/')
 
           # Get version from pyproject.toml on main
-          MAIN_VERSION=$(git show origin/main:pyproject.toml | grep -m1 '^version' | sed 's/.*"\(.*\)"/\1/')
+          MAIN_VERSION=$(git show origin/main:pyproject.toml \
+            | grep -m1 '^version' | sed 's/.*"\(.*\)"/\1/')
 
           # Check if version changed
           if [ "$PR_VERSION" = "$MAIN_VERSION" ]; then
-            echo "Version unchanged ($PR_VERSION) — checking changelog wasn't bumped either."
-            # Check no new ## dlouseiro.X.Y.Z header was added
-            NEW_HEADERS=$(git diff origin/main...HEAD -- CHANGELOG.md | grep '^\+## dlouseiro\.' || true)
+            echo "Version unchanged ($PR_VERSION)"
+            NEW_HEADERS=$(git diff origin/main...HEAD \
+              -- CHANGELOG.md | grep '^\+## dlouseiro\.' || true)
             if [ -n "$NEW_HEADERS" ]; then
-              echo "::error::CHANGELOG.md has a new version header but pyproject.toml version was not bumped."
+              echo "::error::CHANGELOG.md has a new version header" \
+                "but pyproject.toml version was not bumped."
               echo "  Found: $NEW_HEADERS"
               echo "  pyproject.toml version: $PR_VERSION"
               exit 1
@@ -72,11 +92,12 @@ jobs:
 
           echo "Version bumped: $MAIN_VERSION -> $PR_VERSION"
 
-          # Check that CHANGELOG.md has a matching header
           EXPECTED_HEADER="## dlouseiro.${PR_VERSION}"
           if ! grep -qF "$EXPECTED_HEADER" CHANGELOG.md; then
-            echo "::error::pyproject.toml version bumped to $PR_VERSION but CHANGELOG.md is missing header: $EXPECTED_HEADER"
+            echo "::error::pyproject.toml version bumped to" \
+              "$PR_VERSION but CHANGELOG.md is missing" \
+              "header: $EXPECTED_HEADER"
             exit 1
           fi
 
-          echo "Found matching changelog entry: $EXPECTED_HEADER. OK."
+          echo "Found matching changelog entry. OK."
