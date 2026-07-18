@@ -172,6 +172,53 @@ class AcquireTokenTests(unittest.TestCase):
         self.assertEqual(token.access_token, "at-cached")
         self.assertEqual(token.refresh_token, "cached-rt")
 
+    def test_persists_rotated_refresh_token_on_cache_hit(self):
+        # Some External Client App refresh token policies rotate the refresh
+        # token on every use -- Salesforce returns a new one in the refresh
+        # grant response. The cache must be updated, or the next run's reuse
+        # of the now-stale cached token would be rejected, forcing an
+        # unnecessary browser round-trip.
+        with (
+            patch.object(browser_auth, "load_refresh_token", return_value="cached-rt"),
+            patch.object(
+                browser_auth,
+                "_exchange_refresh_token",
+                return_value={
+                    "access_token": "at-cached",
+                    "instance_url": "https://inst",
+                    "refresh_token": "rotated-rt",
+                },
+            ),
+            patch.object(browser_auth, "_run_browser_flow") as mock_browser,
+            patch.object(browser_auth, "store_refresh_token") as mock_store,
+        ):
+            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+
+        mock_browser.assert_not_called()
+        mock_store.assert_called_once_with(Path("/tmp/whatever"), "picnic-nl.my", "ci", "rotated-rt")
+        self.assertEqual(token.refresh_token, "rotated-rt")
+
+    def test_does_not_rewrite_cache_when_refresh_token_is_unchanged(self):
+        # Some policies echo the same refresh token back on every use rather
+        # than omitting it. That's not rotation -- don't treat it as one.
+        with (
+            patch.object(browser_auth, "load_refresh_token", return_value="cached-rt"),
+            patch.object(
+                browser_auth,
+                "_exchange_refresh_token",
+                return_value={
+                    "access_token": "at-cached",
+                    "instance_url": "https://inst",
+                    "refresh_token": "cached-rt",
+                },
+            ),
+            patch.object(browser_auth, "store_refresh_token") as mock_store,
+        ):
+            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+
+        mock_store.assert_not_called()
+        self.assertEqual(token.refresh_token, "cached-rt")
+
     def test_falls_back_to_browser_when_cached_refresh_token_is_rejected(self):
         # Mirrors what Salesforce returns for an expired/revoked refresh token:
         # 400 invalid_grant, surfaced by requests as an HTTPError.

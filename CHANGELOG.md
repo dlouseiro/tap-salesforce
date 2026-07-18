@@ -1,5 +1,18 @@
 # Changelog
 
+## meltano.1.8.0
+
+  * Fix the browser (Authorization Code + PKCE) flow silently losing its
+    cached refresh token when Salesforce rotates it. On a cache-hit
+    refresh exchange, if the response included a new `refresh_token`
+    (some External Client App policies rotate it on every use), the
+    stale cached one was kept regardless -- once Salesforce invalidated
+    it, the next run had to fall back to a full browser round-trip.
+    Found via real end-to-end sandbox testing: browser mode reopened a
+    login window on a run that should have reused a cached token.
+    Now persists the rotated token when one is returned, and leaves the
+    cache untouched when the token comes back unchanged.
+
 ## meltano.1.7.0
 
   * Raise the minimum supported Python version to **3.10** (from an
