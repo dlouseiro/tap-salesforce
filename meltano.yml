@@ -1,0 +1,41 @@
+default_environment: dev
+project_id: tap-salesforce-e2e
+send_anonymous_usage_stats: false
+
+environments:
+  - name: dev
+
+plugins:
+  extractors:
+    - name: tap-salesforce
+      namespace: tap_salesforce
+      pip_url: -e .
+      executable: tap-salesforce
+      capabilities:
+        - discover
+        - catalog
+        - state
+      config:
+        auth_method: ${TAP_SALESFORCE_AUTH_METHOD}
+        domain: ${TAP_SALESFORCE_DOMAIN}
+        client_id: ${TAP_SALESFORCE_CLIENT_ID}
+        client_secret: ${TAP_SALESFORCE_CLIENT_SECRET}
+        redirect_uri: ${TAP_SALESFORCE_REDIRECT_URI}
+        api_type: ${TAP_SALESFORCE_API_TYPE}
+        select_fields_by_default: true
+        streams_to_discover:
+          - RecordType
+          - Account
+          - Contact
+      select:
+        - RecordType.*
+        - Account.*
+        - Contact.*
+
+  loaders:
+    - name: target-duckdb
+      variant: jwills
+      pip_url: target-duckdb~=0.8
+      config:
+        filepath: ./output/e2e.duckdb
+        default_target_schema: salesforce

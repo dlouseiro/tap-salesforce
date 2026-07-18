@@ -83,3 +83,52 @@ All three refer to the same release, formatted for their respective audiences (p
 | Breaking config/API change       | Major (`X.0.0`) | Removing a config key, changing required fields |
 | New feature, backward compatible | Minor (`0.X.0`) | New auth method, new config option              |
 | Bug fix, docs, internal refactor | Patch (`0.0.X`) | Fix a sync bug, update README                   |
+
+## End-to-end testing against a real Salesforce instance
+
+The repo includes a `meltano.yml` for running the tap against a live Salesforce
+org and loading results into a local DuckDB file. No external infrastructure
+needed — just Salesforce credentials.
+
+### Setup
+
+```bash
+# Copy the template and fill in your credentials:
+cp .env.template .env
+
+# Create the output directory for DuckDB:
+mkdir -p output
+
+# Install meltano (isolated from project deps — uses its own venvs for plugins):
+pipx install meltano
+
+# Install the tap (from local source) and target into meltano's plugin venvs:
+meltano install
+```
+
+### Run
+
+```bash
+# Full EL: Salesforce → DuckDB
+meltano run tap-salesforce target-duckdb
+
+# Discovery only (writes catalog to stdout):
+meltano invoke tap-salesforce --discover
+```
+
+After a successful run, query the results:
+
+```bash
+python -c "import duckdb; db = duckdb.connect('output/e2e.duckdb'); print(db.sql('SHOW TABLES').fetchall())"
+```
+
+### Configuration
+
+Edit `.env` to control:
+
+- `TAP_SALESFORCE_AUTH_METHOD` — `browser` (default), `client_credentials`, etc.
+- `TAP_SALESFORCE_DOMAIN` — your Salesforce My Domain
+- `TAP_SALESFORCE_API_TYPE` — `REST`, `BULK`, or `BULK2`
+
+The default config syncs `RecordType`, `Account`, and `Contact`. Edit
+`meltano.yml` to add/remove streams.
