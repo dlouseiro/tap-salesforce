@@ -9,6 +9,41 @@ poetry install --with dev --all-extras
 poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
+`--all-extras` pulls in `keyring`, needed to exercise the browser auth
+flow's OS-keychain path. `--with dev` pulls in `pytest`, `ruff`, `tox`, and
+`pre-commit`.
+
+### Running checks
+
+```bash
+# Run everything CI runs, locally, in one shot:
+poetry run tox
+
+# ...or just one piece of it:
+poetry run tox -e lint      # ruff check + ruff format --check
+poetry run tox -e py312     # pytest on a specific Python version
+
+# Run the tap itself from the poetry-managed environment:
+poetry run tap-salesforce --config config.json --discover > properties.json
+```
+
+`.github/workflows/ci.yml` runs the exact same `tox` environments on every
+push/PR to `main`, across Python 3.10-3.13. `tox.ini` is the single source of
+truth for what "passing" means, shared by CI and local runs.
+
+### pyenv note
+
+`tox` needs each Python version's interpreter directly resolvable (e.g.
+`python3.12` on `PATH`). Run `pyenv local 3.10.x 3.11.x 3.12.x 3.13.x` in the
+repo root so `tox` can find all four; otherwise it silently skips whichever ones
+it can't find.
+
+### Git hooks
+
+Pre-commit is configured with two speeds:
+- **On every `git commit`** — `ruff check --fix`, `ruff format`, file hygiene (fast).
+- **On every `git push`** — the full `tox` suite (slower, matches CI).
+
 ## Making changes
 
 1. Create a branch from `main`
