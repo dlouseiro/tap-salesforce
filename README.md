@@ -94,241 +94,169 @@ pip install git+https://github.com/dlouseiro/tap-salesforce.git
 
 ## Create a Config file
 
-**Required**
-```
+Every config requires these top-level keys:
+
+```json
 {
+  "auth_method": "browser",
+  "domain": "mycompany.my",
   "api_type": "BULK2",
-  "select_fields_by_default": true,
+  "select_fields_by_default": true
 }
 ```
+
+- **`auth_method`** — Required. One of: `browser`, `client_credentials`, `refresh_token`, `password`.
+- **`domain`** — Required. Your Salesforce My Domain string (the part before `.salesforce.com`).
+  Examples: `"mycompany.my"` (production), `"mycompany--uat.sandbox.my"` (sandbox).
+  For legacy flows that previously used `login.salesforce.com` or `test.salesforce.com`,
+  pass `"login"` or `"test"` respectively.
+- **`api_type`** — Required. One of: `REST`, `BULK`, `BULK2` (recommended).
+- **`select_fields_by_default`** — Required. Whether to auto-select newly-discovered fields.
 
 ### Authentication
 
-The tap supports four authentication flows. Pick one per environment; when
-multiple credential shapes are populated, the first one in this list wins:
+The tap supports four authentication methods, selected explicitly via `auth_method`.
 
-1. **OAuth 2.0 Refresh Token grant** — pre-obtained refresh token, headless.
-2. **OAuth 2.0 Client Credentials grant** — machine-to-machine, no user context.
-3. **OAuth 2.0 Authorization Code + PKCE (browser)** — interactive local login.
-4. **Legacy SOAP username/password/security_token** — retired by Salesforce Summer '27.
+#### `browser` — OAuth 2.0 Authorization Code + PKCE (interactive)
 
-#### Shared authentication parameters
-
-The following parameters are used by multiple authentication methods:
-
-- **`domain`** — Salesforce My Domain (e.g., `"picnic-nl.my"`) used by Client Credentials
-  and browser authentication. This is the custom domain suffix created in your Salesforce org
-  (the part before `.salesforce.com`). For these methods, the `login` and `test` domain shortcuts
-  are not accepted by Salesforce. Only used if you're using one of those auth flows; not needed
-  for Refresh Token or legacy SOAP auth.
-
-- **`is_sandbox`** — Boolean flag to authenticate against Salesforce's sandbox environment
-  (`test.salesforce.com` instead of `login.salesforce.com`). Supported by all four authentication
-  flows; defaults to `false` (production). Set to `true` or the string `"true"` for sandbox.
-
-#### OAuth 2.0 Refresh Token grant
-
-**Required parameters:**
-- `client_id` — OAuth app's client ID (consumer key).
-- `client_secret` — OAuth app's client secret (consumer secret).
-- `refresh_token` — Long-lived refresh token obtained during the OAuth flow.
+For local development. Opens a browser on first run; caches the refresh token
+for subsequent headless runs.
 
 ```json
 {
-  "client_id": "secret_client_id",
-  "client_secret": "secret_client_secret",
-  "refresh_token": "abc123"
+  "auth_method": "browser",
+  "domain": "mycompany--uat.sandbox.my",
+  "client_id": "3MVG9..."
 }
 ```
 
-Use this for headless sync scenarios (cron, CI/CD, scheduled tasks) where you've
-already completed an OAuth authorization and stored the refresh token.
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `client_id` | Yes | External Client App's consumer key |
+| `domain` | Yes | Salesforce My Domain |
+| `redirect_uri` | No | Pin the callback URL (e.g. `http://localhost:29110/callback`). If omitted, an ephemeral loopback port is chosen at runtime. |
 
-#### OAuth 2.0 Client Credentials grant
+The refresh token is cached in your OS keychain when the `keyring` extra is
+installed (`pip install tap-salesforce[browser]`). Without it, falls back to
+`~/.tap-salesforce/<domain>/<client_id>.json` (mode `0600`).
 
-**Required parameters:**
-- `client_id` — External Client App's consumer key.
-- `client_secret` — External Client App's consumer secret.
-- `domain` — Salesforce My Domain (e.g., `"picnic-nl.my"`). The `login` / `test`
-  shortcuts are not accepted by Salesforce for this grant.
+#### `client_credentials` — OAuth 2.0 Client Credentials (machine-to-machine)
+
+For production/CI. No user interaction, runs as the app's configured "Run As" user.
 
 ```json
 {
-  "client_id": "secret_client_id",
-  "client_secret": "secret_client_secret",
-  "domain": "picnic-nl.my"
+  "auth_method": "client_credentials",
+  "domain": "mycompany.my",
+  "client_id": "3MVG9...",
+  "client_secret": "secret..."
 }
 ```
 
-The tap runs as the Connected App / External Client App's configured "Run As" user,
-with machine-to-machine authentication and no individual user context.
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `client_id` | Yes | External Client App's consumer key |
+| `client_secret` | Yes | External Client App's consumer secret |
+| `domain` | Yes | Salesforce My Domain |
 
-#### OAuth 2.0 Authorization Code + PKCE (browser)
+#### `refresh_token` — OAuth 2.0 Refresh Token (deprecated)
 
-**Required parameters:**
-- `client_id` — OAuth app's client ID.
-- `domain` — Salesforce My Domain (e.g., `"picnic-nl.my"`).
+Pre-obtained refresh token flow. **Deprecated** — migrate to `client_credentials`.
 
 ```json
 {
-  "client_id": "secret_client_id",
-  "domain": "picnic-nl.my"
+  "auth_method": "refresh_token",
+  "domain": "mycompany.my",
+  "client_id": "3MVG9...",
+  "client_secret": "secret...",
+  "refresh_token": "5Aep..."
 }
 ```
 
-On the first run, the tap opens a browser window so you can log in with
-your personal Salesforce user; the resulting refresh token is cached and
-reused silently on subsequent runs. If the refresh token is later rejected
-(revoked, expired, etc.) the browser step is retried. Intended for local
-developer machines only — cron/production should use Client Credentials
-or the Refresh Token grant.
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `client_id` | Yes | OAuth app's consumer key |
+| `client_secret` | Yes | OAuth app's consumer secret |
+| `refresh_token` | Yes | Long-lived refresh token |
+| `domain` | Yes | Salesforce My Domain (or `"login"` / `"test"` for generic endpoints) |
 
-The refresh token is cached in your OS keychain (macOS Keychain, GNOME
-Keyring/KWallet, Windows Credential Locker) when the optional `keyring`
-extra is installed:
-```bash
-pip install tap-salesforce[browser]
-```
+#### `password` — Legacy SOAP login (deprecated)
 
-Without that extra — or if the keychain backend isn't available (e.g. a
-headless dev container with no unlocked session) — it falls back
-automatically to a plain file at
-`~/.tap-salesforce/<domain>/<client_id>.json` (mode `0600`). No
-configuration needed either way; the tap tries the keychain first and
-falls back transparently.
-
-**Optional parameters for this flow:**
-- `browser_auth` — Explicitly pin the browser flow (useful when the same config
-  file also carries a `client_secret` for prod runs; set to `true` to force browser auth
-  even if `client_secret` is present). Defaults to `false` (browser auth is chosen
-  only if `client_secret` is not present and `refresh_token` is not present).
-
-  ```json
-  {
-    "client_id": "secret_client_id",
-    "domain": "picnic-nl.my",
-    "browser_auth": true
-  }
-  ```
-
-- `redirect_uri` — Override the callback URL for the OAuth redirect. By default the tap
-  listens on an ephemeral loopback port chosen at runtime (e.g., `http://localhost:PORT/callback`),
-  so no port needs to be hardcoded. Use this when:
-  - Your External Client App's registered callback URL pins a specific port (e.g.,
-    `http://localhost:1717/callback` — the tap will listen on that exact port).
-  - You need a specific host/path behind a local proxy (e.g., `http://proxy.internal:8080/oauth/callback`).
-  - If provided without a port (e.g., `"http://localhost/callback"`), the tap still
-    chooses an ephemeral port and appends it, keeping the given host and path.
-
-  ```json
-  {
-    "client_id": "secret_client_id",
-    "domain": "picnic-nl.my",
-    "redirect_uri": "http://localhost:1717/callback"
-  }
-  ```
-
-#### Legacy SOAP username/password/security_token
-
-**Required parameters:**
-- `username` — Salesforce account email address.
-- `password` — Salesforce account password.
-- `security_token` — Security token issued by Salesforce.
+Username/password/security_token flow. **Deprecated** — will stop working when
+Salesforce retires SOAP login (Summer '27). Migrate to `client_credentials`.
 
 ```json
 {
-  "username": "account@example.com",
+  "auth_method": "password",
+  "domain": "test",
+  "username": "user@example.com",
   "password": "mypassword",
-  "security_token": "security_token_value"
+  "security_token": "token..."
 }
 ```
 
-This flow authenticates via Salesforce's SOAP `login()` endpoint and will
-stop working once Salesforce retires SOAP login (Summer '27). Migrate to
-one of the OAuth flows above.
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `username` | Yes | Salesforce username |
+| `password` | Yes | Salesforce password |
+| `security_token` | Yes | Salesforce security token |
+| `domain` | Yes | `"login"` (production), `"test"` (sandbox), or a My Domain string |
 
 ### General Configuration
 
-All authentication methods support the following optional configuration parameters:
+All authentication methods support the following optional parameters:
 
 ```json
 {
-  "ignore_formula_fields": false,
   "start_date": "2017-11-02T00:00:00Z",
+  "api_version": "v60.0",
+  "streams_to_discover": ["Lead", "LeadHistory"],
+  "ignore_formula_fields": false,
   "state_message_threshold": 1000,
   "max_workers": 8,
-  "streams_to_discover": ["Lead", "LeadHistory"],
   "lookback_window": 10,
-  "api_version": "v60.0",
   "soql_filters": {
     "Product2": "RecordType.DeveloperName = 'SomeRecordType'"
   }
 }
 ```
 
-#### General parameters
+- **`start_date`** — Bound on SOQL queries when searching for records.
+  [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) formatted (e.g. `"2018-01-08T00:00:00Z"`).
 
-- **`start_date`** — Used by the tap as a bound on SOQL queries when searching for records.
-  Should be an [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) formatted date-time, like
-  `"2018-01-08T00:00:00Z"`. For more details, see the [Singer best practices for dates](https://github.com/singer-io/getting-started/blob/master/BEST_PRACTICES.md#dates).
+- **`api_version`** — Salesforce API version (e.g. `"v63.0"`). Defaults to `"v60.0"`.
 
-- **`api_type`** — Required; switch between Salesforce API backends:
-  - `"REST"` — Use the REST API for queries.
-  - `"BULK"` — Use Salesforce Bulk API v1 (queryAll includes deleted/archived records).
-  - `"BULK2"` — Use Salesforce Bulk API v2 (queryAll includes deleted/archived records); recommended.
+- **`streams_to_discover`** — List of Salesforce objects to discover. If omitted, all
+  objects are discovered (can take several minutes).
 
-- **`select_fields_by_default`** — Required; whether to automatically select newly-discovered
-  fields during discovery. Defaults to `false`.
+- **`ignore_formula_fields`** — Exclude formula fields from sync. Defaults to `false`.
 
-- **`api_version`** — Salesforce API version to use (e.g., `"v60.0"`). Defaults to `"v60.0"`.
+- **`state_message_threshold`** — Emit STATE every N records. Defaults to `1000`.
 
-#### Discovery & sync parameters
+- **`max_workers`** — Max concurrent stream extraction threads. Defaults to `8`.
 
-- **`streams_to_discover`** — List of Salesforce objects (streams) to discover during discovery mode.
-  By default all streams are discovered, which can take several minutes. Specifying a subset
-  speeds up discovery but requires keeping the list in sync with your `select` section.
-  Example: `["Lead", "LeadHistory"]`.
+- **`lookback_window`** — Seconds to subtract from bookmark on resume. Recommended: `10`.
 
-- **`ignore_formula_fields`** — Boolean; exclude Salesforce formula fields from synchronization.
-  Formula fields are computed dynamically and don't trigger `LastModifiedDate` updates when their
-  values change, leading to inconsistencies during incremental syncs. Consider handling these
-  calculations in your transformation layer instead. Defaults to `false`.
+- **`soql_filters`** — Per-stream SOQL WHERE clauses (conditions only, no leading `WHERE`).
 
-#### Performance & query parameters
+### Migration from dlouseiro.3.x
 
-- **`state_message_threshold`** — Throttle how often STATE messages are generated when using the
-  REST API (balance between throughput and recovery cost if a sync fails). Defaults to `1000`
-  (generate a STATE message every 1000 records).
+This version introduces **breaking changes** to the authentication configuration:
 
-- **`max_workers`** — Maximum number of worker threads for concurrent stream extraction.
-  Defaults to `8` (extract up to 8 streams in parallel).
-
-- **`lookback_window`** — Number of seconds to subtract from the bookmark when resuming an
-  incremental sync (rewind the start date to catch up on any records that may have been missed).
-  Recommended value: `10` seconds.
-
-- **`soql_filters`** — Object mapping stream/object names to additional SOQL WHERE clause filters.
-  Filters are appended to the WHERE clause and combined with the replication window. Useful for
-  record-type filtering or other business logic.
-
-  Example:
-  ```json
-  "soql_filters": {
-    "Product2": "RecordType.DeveloperName = 'SomeRecordType'"
-  }
-  ```
+| Old config | New config |
+|---|---|
+| `"is_sandbox": true` | Use sandbox domain: `"domain": "mycompany--uat.sandbox.my"` |
+| `"browser_auth": true` | `"auth_method": "browser"` |
+| (implicit shape detection) | `"auth_method": "client_credentials"` (or `"refresh_token"`, `"password"`) |
+| `"domain"` not required for refresh_token/password | `"domain"` is now required for ALL methods |
 
 ## Run Discovery
-
-To run discovery mode, execute the tap with the config file.
 
 ```
 tap-salesforce --config config.json --discover > properties.json
 ```
 
 ## Sync Data
-
-To sync data, select fields in the `properties.json` output and run the tap.
 
 ```
 tap-salesforce --config config.json --properties properties.json [--state state.json]

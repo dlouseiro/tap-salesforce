@@ -38,3 +38,45 @@ jobs:
         run: pip install tox
       - name: tox -e py${{ matrix.python-version }}
         run: tox -e "py$(echo ${{ matrix.python-version }} | tr -d '.')"
+
+  version-changelog-check:
+    name: Version/Changelog consistency
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check version and changelog are in sync
+        run: |
+          # Get version from pyproject.toml on this branch
+          PR_VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+
+          # Get version from pyproject.toml on main
+          MAIN_VERSION=$(git show origin/main:pyproject.toml | grep -m1 '^version' | sed 's/.*"\(.*\)"/\1/')
+
+          # Check if version changed
+          if [ "$PR_VERSION" = "$MAIN_VERSION" ]; then
+            echo "Version unchanged ($PR_VERSION) — checking changelog wasn't bumped either."
+            # Check no new ## dlouseiro.X.Y.Z header was added
+            NEW_HEADERS=$(git diff origin/main...HEAD -- CHANGELOG.md | grep '^\+## dlouseiro\.' || true)
+            if [ -n "$NEW_HEADERS" ]; then
+              echo "::error::CHANGELOG.md has a new version header but pyproject.toml version was not bumped."
+              echo "  Found: $NEW_HEADERS"
+              echo "  pyproject.toml version: $PR_VERSION"
+              exit 1
+            fi
+            echo "Neither changed. OK."
+            exit 0
+          fi
+
+          echo "Version bumped: $MAIN_VERSION -> $PR_VERSION"
+
+          # Check that CHANGELOG.md has a matching header
+          EXPECTED_HEADER="## dlouseiro.${PR_VERSION}"
+          if ! grep -qF "$EXPECTED_HEADER" CHANGELOG.md; then
+            echo "::error::pyproject.toml version bumped to $PR_VERSION but CHANGELOG.md is missing header: $EXPECTED_HEADER"
+            exit 1
+          fi
+
+          echo "Found matching changelog entry: $EXPECTED_HEADER. OK."
