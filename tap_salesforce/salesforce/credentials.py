@@ -10,11 +10,24 @@ LOGGER = logging.getLogger(__name__)
 
 OAuthCredentials = namedtuple("OAuthCredentials", ("client_id", "client_secret", "refresh_token"))
 
+ClientCredentials = namedtuple("ClientCredentials", ("client_id", "client_secret", "domain"))
+
 PasswordCredentials = namedtuple("PasswordCredentials", ("username", "password", "security_token"))
 
 
+# Priority order (first fully-populated shape wins) — most specific first.
+# ``OAuthCredentials`` and ``ClientCredentials`` both include ``client_id`` and
+# ``client_secret``; ``refresh_token`` being present is the signal for the Refresh
+# Token grant, so it must be checked before Client Credentials.
+_CREDENTIAL_SHAPES = (
+    OAuthCredentials,
+    ClientCredentials,
+    PasswordCredentials,
+)
+
+
 def parse_credentials(config):
-    for cls in reversed((OAuthCredentials, PasswordCredentials)):
+    for cls in _CREDENTIAL_SHAPES:
         creds = cls(*(config.get(key) for key in cls._fields))
         if all(creds):
             return creds
@@ -53,6 +66,9 @@ class SalesforceAuth:
     def from_credentials(cls, credentials, **kwargs):
         if isinstance(credentials, OAuthCredentials):
             return SalesforceAuthOAuth(credentials, **kwargs)
+
+        if isinstance(credentials, ClientCredentials):
+            return SalesforceAuthClientCredentials(credentials, **kwargs)
 
         if isinstance(credentials, PasswordCredentials):
             return SalesforceAuthPassword(credentials, **kwargs)
@@ -106,7 +122,48 @@ class SalesforceAuthOAuth(SalesforceAuth):
 
 class SalesforceAuthPassword(SalesforceAuth):
     def login(self):
-        login = SalesforceLogin(sandbox=self.is_sandbox, **self._credentials._asdict())
+        # ``simple-salesforce`` >=1.0 replaced the ``sandbox`` kwarg with ``domain``:
+        # ``"test"`` targets the sandbox login endpoint, ``"login"`` targets production.
+        login = SalesforceLogin(
+            domain="test" if self.is_sandbox else "login",
+            **self._credentials._asdict(),
+        )
 
         self._access_token, host = login
         self._instance_url = "https://" + host
+
+
+class SalesforceAuthClientCredentials(SalesforceAuth):
+    """OAuth 2.0 Client Credentials grant.
+
+    Machine-to-machine authentication. Credentials are the External Client App's
+    ``consumer_key`` (``client_id``) and ``consumer_secret`` (``client_secret``);
+    identity is the app's configured "Run As" user. Requires a Salesforce My
+    Domain (``login``/``test`` are not accepted by Salesforce for this grant).
+
+    The Salesforce access token is short-lived, so we re-login periodically to
+    keep long-running syncs healthy — matching the pattern used by
+    ``SalesforceAuthOAuth``.
+    """
+
+    REFRESH_TOKEN_EXPIRATION_PERIOD = 900
+
+    def login(self):
+        try:
+            LOGGER.info("Attempting login via OAuth2 Client Credentials")
+
+            # ``simple-salesforce.SalesforceLogin`` handles the token endpoint
+            # construction, HTTP Basic authorisation header, and response parsing
+            # for this grant. Returns ``(access_token, sf_instance_host)``.
+            self._access_token, host = SalesforceLogin(
+                consumer_key=self._credentials.client_id,
+                consumer_secret=self._credentials.client_secret,
+                domain=self._credentials.domain,
+            )
+            self._instance_url = "https://" + host
+
+            LOGGER.info("OAuth2 Client Credentials login successful")
+        finally:
+            LOGGER.info("Starting new login timer")
+            self.login_timer = threading.Timer(self.REFRESH_TOKEN_EXPIRATION_PERIOD, self.login)
+            self.login_timer.start()

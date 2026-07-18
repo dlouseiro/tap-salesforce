@@ -14,6 +14,7 @@ from singer import metadata, metrics
 import tap_salesforce.salesforce
 from tap_salesforce.salesforce import Salesforce
 from tap_salesforce.salesforce.credentials import (
+    ClientCredentials,
     OAuthCredentials,
     PasswordCredentials,
     parse_credentials,
@@ -33,24 +34,20 @@ LOGGER = singer.get_logger()
 # the tap requires these keys
 REQUIRED_CONFIG_KEYS = ["api_type", "select_fields_by_default"]
 
-# and either one of these credentials
-
-# OAuth:
-# - client_id
-# - client_secret
-# - refresh_token
+# and either one of these credential shapes:
+#
+# OAuth 2.0 Refresh Token grant (client_id + client_secret + refresh_token):
 OAUTH_CONFIG_KEYS = OAuthCredentials._fields
-
-# Password:
-# - username
-# - password
-# - security_token
+# OAuth 2.0 Client Credentials grant (client_id + client_secret + domain):
+CLIENT_CREDENTIALS_CONFIG_KEYS = ClientCredentials._fields
+# Legacy SOAP username/password/security_token:
 PASSWORD_CONFIG_KEYS = PasswordCredentials._fields
 
 CONFIG = {
     "refresh_token": None,
     "client_id": None,
     "client_secret": None,
+    "domain": None,
     "start_date": None,
     "soql_filters": None,
 }

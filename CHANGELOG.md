@@ -1,5 +1,16 @@
 # Changelog
 
+## meltano.1.6.0
+
+  * Upgrade `simple-salesforce` from `<1.0` to `~=1.12`. Adapted the
+    `SalesforceLogin` call in the legacy password path from the removed
+    `sandbox=` kwarg to the modern `domain=` kwarg (no behaviour change).
+  * Add support for the **OAuth 2.0 Client Credentials** grant via new
+    `client_id` + `client_secret` + `domain` config keys. Dispatched
+    through `simple-salesforce`'s `SalesforceLogin`. Intended for
+    machine-to-machine (cron / prod) execution as the External Client App's
+    "Run As" user.
+
 ## meltano.1.5.0
 
   * [#14](https://gitlab.com/meltano/tap-salesforce/-/issues/14) Apply schema filtering per property selection rules.

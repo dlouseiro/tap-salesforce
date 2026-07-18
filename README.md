@@ -35,23 +35,49 @@ pip install git+https://github.com/MeltanoLabs/tap-salesforce.git
 }
 ```
 
-**Required for OAuth based authentication**
+### Authentication
+
+The tap supports three authentication flows. Pick one per environment; when
+multiple credential shapes are populated, the first one in this list wins:
+
+1. **OAuth 2.0 Refresh Token grant** — pre-obtained refresh token, headless.
+2. **OAuth 2.0 Client Credentials grant** — machine-to-machine, no user context.
+3. **Legacy SOAP username/password/security_token** — retired by Salesforce Summer '27.
+
+**Required for OAuth 2.0 Refresh Token grant**
 ```
 {
   "client_id": "secret_client_id",
   "client_secret": "secret_client_secret",
-  "refresh_token": "abc123",
+  "refresh_token": "abc123"
 }
 ```
 
-**Required for username/password based authentication**
+**Required for OAuth 2.0 Client Credentials grant**
+```
+{
+  "client_id": "secret_client_id",
+  "client_secret": "secret_client_secret",
+  "domain": "picnic-nl.my"
+}
+```
+
+The `domain` must be a Salesforce My Domain (the `login` / `test` shortcuts
+are not accepted by Salesforce for this grant). The tap runs as the
+Connected App / External Client App's configured "Run As" user.
+
+**Required for username/password based authentication (legacy — SOAP)**
 ```
 {
   "username": "Account Email",
   "password": "Account Password",
-  "security_token": "Security Token",
+  "security_token": "Security Token"
 }
 ```
+
+This flow authenticates via Salesforce's SOAP `login()` endpoint and will
+stop working once Salesforce retires SOAP login (Summer '27). Migrate to
+one of the OAuth flows above.
 
 **Optional**
 ```
