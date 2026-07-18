@@ -112,8 +112,28 @@ multiple credential shapes are populated, the first one in this list wins:
 3. **OAuth 2.0 Authorization Code + PKCE (browser)** — interactive local login.
 4. **Legacy SOAP username/password/security_token** — retired by Salesforce Summer '27.
 
-**Required for OAuth 2.0 Refresh Token grant**
-```
+#### Shared authentication parameters
+
+The following parameters are used by multiple authentication methods:
+
+- **`domain`** — Salesforce My Domain (e.g., `"picnic-nl.my"`) used by Client Credentials
+  and browser authentication. This is the custom domain suffix created in your Salesforce org
+  (the part before `.salesforce.com`). For these methods, the `login` and `test` domain shortcuts
+  are not accepted by Salesforce. Only used if you're using one of those auth flows; not needed
+  for Refresh Token or legacy SOAP auth.
+
+- **`is_sandbox`** — Boolean flag to authenticate against Salesforce's sandbox environment
+  (`test.salesforce.com` instead of `login.salesforce.com`). Supported by all four authentication
+  flows; defaults to `false` (production). Set to `true` or the string `"true"` for sandbox.
+
+#### OAuth 2.0 Refresh Token grant
+
+**Required parameters:**
+- `client_id` — OAuth app's client ID (consumer key).
+- `client_secret` — OAuth app's client secret (consumer secret).
+- `refresh_token` — Long-lived refresh token obtained during the OAuth flow.
+
+```json
 {
   "client_id": "secret_client_id",
   "client_secret": "secret_client_secret",
@@ -121,8 +141,18 @@ multiple credential shapes are populated, the first one in this list wins:
 }
 ```
 
-**Required for OAuth 2.0 Client Credentials grant**
-```
+Use this for headless sync scenarios (cron, CI/CD, scheduled tasks) where you've
+already completed an OAuth authorization and stored the refresh token.
+
+#### OAuth 2.0 Client Credentials grant
+
+**Required parameters:**
+- `client_id` — External Client App's consumer key.
+- `client_secret` — External Client App's consumer secret.
+- `domain` — Salesforce My Domain (e.g., `"picnic-nl.my"`). The `login` / `test`
+  shortcuts are not accepted by Salesforce for this grant.
+
+```json
 {
   "client_id": "secret_client_id",
   "client_secret": "secret_client_secret",
@@ -130,25 +160,19 @@ multiple credential shapes are populated, the first one in this list wins:
 }
 ```
 
-The `domain` must be a Salesforce My Domain (the `login` / `test` shortcuts
-are not accepted by Salesforce for this grant). The tap runs as the
-Connected App / External Client App's configured "Run As" user.
+The tap runs as the Connected App / External Client App's configured "Run As" user,
+with machine-to-machine authentication and no individual user context.
 
-**Required for OAuth 2.0 Authorization Code + PKCE (browser)**
-```
+#### OAuth 2.0 Authorization Code + PKCE (browser)
+
+**Required parameters:**
+- `client_id` — OAuth app's client ID.
+- `domain` — Salesforce My Domain (e.g., `"picnic-nl.my"`).
+
+```json
 {
   "client_id": "secret_client_id",
   "domain": "picnic-nl.my"
-}
-```
-
-Optionally pin the browser flow explicitly (useful when the same config
-file also carries a `client_secret` for prod runs):
-```
-{
-  "client_id": "secret_client_id",
-  "domain": "picnic-nl.my",
-  "browser_auth": true
 }
 ```
 
@@ -162,9 +186,10 @@ or the Refresh Token grant.
 The refresh token is cached in your OS keychain (macOS Keychain, GNOME
 Keyring/KWallet, Windows Credential Locker) when the optional `keyring`
 extra is installed:
-```
+```bash
 pip install tap-salesforce[browser]
 ```
+
 Without that extra — or if the keychain backend isn't available (e.g. a
 headless dev container with no unlocked session) — it falls back
 automatically to a plain file at
@@ -172,27 +197,49 @@ automatically to a plain file at
 configuration needed either way; the tap tries the keychain first and
 falls back transparently.
 
-By default the tap listens on an ephemeral loopback port chosen at
-runtime, so no port needs to be hardcoded. If your External Client App's
-callback URL is registered with a fixed port instead (or you need a
-specific host/path, e.g. behind a local proxy), set `redirect_uri`:
-```
-{
-  "client_id": "secret_client_id",
-  "domain": "picnic-nl.my",
-  "redirect_uri": "http://localhost:1717/callback"
-}
-```
-If `redirect_uri` is provided without a port (e.g. `"http://localhost/callback"`),
-the tap still chooses an ephemeral port and appends it, keeping the given
-host and path.
+**Optional parameters for this flow:**
+- `browser_auth` — Explicitly pin the browser flow (useful when the same config
+  file also carries a `client_secret` for prod runs; set to `true` to force browser auth
+  even if `client_secret` is present). Defaults to `false` (browser auth is chosen
+  only if `client_secret` is not present and `refresh_token` is not present).
 
-**Required for username/password based authentication (legacy — SOAP)**
-```
+  ```json
+  {
+    "client_id": "secret_client_id",
+    "domain": "picnic-nl.my",
+    "browser_auth": true
+  }
+  ```
+
+- `redirect_uri` — Override the callback URL for the OAuth redirect. By default the tap
+  listens on an ephemeral loopback port chosen at runtime (e.g., `http://localhost:PORT/callback`),
+  so no port needs to be hardcoded. Use this when:
+  - Your External Client App's registered callback URL pins a specific port (e.g.,
+    `http://localhost:1717/callback` — the tap will listen on that exact port).
+  - You need a specific host/path behind a local proxy (e.g., `http://proxy.internal:8080/oauth/callback`).
+  - If provided without a port (e.g., `"http://localhost/callback"`), the tap still
+    chooses an ephemeral port and appends it, keeping the given host and path.
+
+  ```json
+  {
+    "client_id": "secret_client_id",
+    "domain": "picnic-nl.my",
+    "redirect_uri": "http://localhost:1717/callback"
+  }
+  ```
+
+#### Legacy SOAP username/password/security_token
+
+**Required parameters:**
+- `username` — Salesforce account email address.
+- `password` — Salesforce account password.
+- `security_token` — Security token issued by Salesforce.
+
+```json
 {
-  "username": "Account Email",
-  "password": "Account Password",
-  "security_token": "Security Token"
+  "username": "account@example.com",
+  "password": "mypassword",
+  "security_token": "security_token_value"
 }
 ```
 
@@ -200,8 +247,11 @@ This flow authenticates via Salesforce's SOAP `login()` endpoint and will
 stop working once Salesforce retires SOAP login (Summer '27). Migrate to
 one of the OAuth flows above.
 
-**Optional**
-```
+### General Configuration
+
+All authentication methods support the following optional configuration parameters:
+
+```json
 {
   "ignore_formula_fields": false,
   "start_date": "2017-11-02T00:00:00Z",
@@ -216,35 +266,57 @@ one of the OAuth flows above.
 }
 ```
 
-The `client_id` and `client_secret` keys are your OAuth Salesforce App secrets. The `refresh_token` is a secret created during the OAuth flow. For more info on the Salesforce OAuth flow, visit the [Salesforce documentation](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_understanding_web_server_oauth_flow.htm).
+#### General parameters
 
-The `start_date` is used by the tap as a bound on SOQL queries when searching for records.  This should be an [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) formatted date-time, like "2018-01-08T00:00:00Z". For more details, see the [Singer best practices for dates](https://github.com/singer-io/getting-started/blob/master/BEST_PRACTICES.md#dates).
+- **`start_date`** — Used by the tap as a bound on SOQL queries when searching for records.
+  Should be an [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) formatted date-time, like
+  `"2018-01-08T00:00:00Z"`. For more details, see the [Singer best practices for dates](https://github.com/singer-io/getting-started/blob/master/BEST_PRACTICES.md#dates).
 
-The `api_type` is used to switch the behavior of the tap between using Salesforce's "REST", "BULK" and "BULK 2.0" APIs (each using the `queryAll` operation to include deleted and archived records). When new fields are discovered in Salesforce objects, the `select_fields_by_default` key describes whether or not the tap will select those fields by default.
+- **`api_type`** — Required; switch between Salesforce API backends:
+  - `"REST"` — Use the REST API for queries.
+  - `"BULK"` — Use Salesforce Bulk API v1 (queryAll includes deleted/archived records).
+  - `"BULK2"` — Use Salesforce Bulk API v2 (queryAll includes deleted/archived records); recommended.
 
-The `state_message_threshold` is used to throttle how often STATE messages are generated when the tap is using the "REST" API. This is a balance between not slowing down execution due to too many STATE messages produced and how many records must be fetched again if a tap fails unexpectedly. Defaults to 1000 (generate a STATE message every 1000 records).
+- **`select_fields_by_default`** — Required; whether to automatically select newly-discovered
+  fields during discovery. Defaults to `false`.
 
-The `max_workers` value is used to set the maximum number of threads used in order to concurrently extract data for streams. Defaults to 8 (extract data for 8 streams in paralel).
+- **`api_version`** — Salesforce API version to use (e.g., `"v60.0"`). Defaults to `"v60.0"`.
 
-The `streams_to_discover` value may contain a list of Salesforce streams (each ending up in a target table) for which the discovery is handled.
-By default, discovery is handled for all existing streams, which can take several minutes. With just several entities which users typically need it is running few seconds.
-The disadvantage is that you have to keep this list in sync with the `select` section, where you specify all properties(each ending up in a table column).
+#### Discovery & sync parameters
 
-The `lookback_window` (in seconds) subtracts the desired amount of seconds from the bookmark to sync past data. Recommended value: 10 seconds.
+- **`streams_to_discover`** — List of Salesforce objects (streams) to discover during discovery mode.
+  By default all streams are discovered, which can take several minutes. Specifying a subset
+  speeds up discovery but requires keeping the list in sync with your `select` section.
+  Example: `["Lead", "LeadHistory"]`.
 
-The `api_version` defines the version of the Salesforce API to use. Default: v60.0.
+- **`ignore_formula_fields`** — Boolean; exclude Salesforce formula fields from synchronization.
+  Formula fields are computed dynamically and don't trigger `LastModifiedDate` updates when their
+  values change, leading to inconsistencies during incremental syncs. Consider handling these
+  calculations in your transformation layer instead. Defaults to `false`.
 
-The `ignore_formula_fields` flag excludes Salesforce formula fields from synchronization. Formula fields are computed dynamically and don't trigger LastModifiedDate updates when their values change. This can lead to inconsistencies during incremental syncs, as changes won't be detected. Consider handling these calculations in your transformation layer instead. Default: false.
+#### Performance & query parameters
 
-The `soql_filters` option allows you to specify additional SOQL filters per stream/object. These filters are appended to the WHERE clause and combined with the replication window when present.
+- **`state_message_threshold`** — Throttle how often STATE messages are generated when using the
+  REST API (balance between throughput and recovery cost if a sync fails). Defaults to `1000`
+  (generate a STATE message every 1000 records).
 
-Example:
+- **`max_workers`** — Maximum number of worker threads for concurrent stream extraction.
+  Defaults to `8` (extract up to 8 streams in parallel).
 
-```
-"soql_filters": {
-  "Product2": "RecordType.DeveloperName = 'SomeRecordType'"
-}
-```
+- **`lookback_window`** — Number of seconds to subtract from the bookmark when resuming an
+  incremental sync (rewind the start date to catch up on any records that may have been missed).
+  Recommended value: `10` seconds.
+
+- **`soql_filters`** — Object mapping stream/object names to additional SOQL WHERE clause filters.
+  Filters are appended to the WHERE clause and combined with the replication window. Useful for
+  record-type filtering or other business logic.
+
+  Example:
+  ```json
+  "soql_filters": {
+    "Product2": "RecordType.DeveloperName = 'SomeRecordType'"
+  }
+  ```
 
 ## Run Discovery
 
