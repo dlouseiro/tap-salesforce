@@ -1,9 +1,12 @@
 import logging
 import threading
 from collections import namedtuple
+from pathlib import Path
 
 import requests
 from simple_salesforce import SalesforceLogin
+
+from tap_salesforce.salesforce import browser_auth
 
 LOGGER = logging.getLogger(__name__)
 
@@ -12,21 +15,35 @@ OAuthCredentials = namedtuple("OAuthCredentials", ("client_id", "client_secret",
 
 ClientCredentials = namedtuple("ClientCredentials", ("client_id", "client_secret", "domain"))
 
+BrowserCredentials = namedtuple("BrowserCredentials", ("client_id", "domain"))
+
 PasswordCredentials = namedtuple("PasswordCredentials", ("username", "password", "security_token"))
 
 
 # Priority order (first fully-populated shape wins) — most specific first.
 # ``OAuthCredentials`` and ``ClientCredentials`` both include ``client_id`` and
 # ``client_secret``; ``refresh_token`` being present is the signal for the Refresh
-# Token grant, so it must be checked before Client Credentials.
+# Token grant, so it must be checked before Client Credentials. ``BrowserCredentials``
+# is a strict subset of ``ClientCredentials`` fields and therefore comes after it —
+# ``client_secret`` being populated means "use Client Credentials", not Browser.
 _CREDENTIAL_SHAPES = (
     OAuthCredentials,
     ClientCredentials,
+    BrowserCredentials,
     PasswordCredentials,
 )
 
 
 def parse_credentials(config):
+    # Explicit override: ``browser_auth=True`` short-circuits to the browser
+    # flow even when ``client_secret`` is populated. Handy for local dev when
+    # the same config file also carries the prod client_secret via Vault.
+    if config.get("browser_auth") is True:
+        browser = BrowserCredentials(*(config.get(key) for key in BrowserCredentials._fields))
+        if all(browser):
+            return browser
+        raise Exception("browser_auth=True requires 'client_id' and 'domain' to be set.")
+
     for cls in _CREDENTIAL_SHAPES:
         creds = cls(*(config.get(key) for key in cls._fields))
         if all(creds):
@@ -69,6 +86,9 @@ class SalesforceAuth:
 
         if isinstance(credentials, ClientCredentials):
             return SalesforceAuthClientCredentials(credentials, **kwargs)
+
+        if isinstance(credentials, BrowserCredentials):
+            return SalesforceAuthBrowser(credentials, **kwargs)
 
         if isinstance(credentials, PasswordCredentials):
             return SalesforceAuthPassword(credentials, **kwargs)
@@ -163,6 +183,53 @@ class SalesforceAuthClientCredentials(SalesforceAuth):
             self._instance_url = "https://" + host
 
             LOGGER.info("OAuth2 Client Credentials login successful")
+        finally:
+            LOGGER.info("Starting new login timer")
+            self.login_timer = threading.Timer(self.REFRESH_TOKEN_EXPIRATION_PERIOD, self.login)
+            self.login_timer.start()
+
+
+class SalesforceAuthBrowser(SalesforceAuth):
+    """OAuth 2.0 Authorization Code Flow with PKCE (interactive browser login).
+
+    Intended for local developer execution where each dev acts as their own
+    Salesforce user. Cron / production should use
+    :class:`SalesforceAuthClientCredentials` (or the legacy
+    :class:`SalesforceAuthOAuth` for pre-obtained refresh tokens).
+
+    The first run opens a browser and caches the returned refresh token to
+    ``~/.tap-salesforce/<domain>/<client_id>.json`` (mode ``0600``).
+    Subsequent runs — including headless invocations on the same machine —
+    swap the cached refresh token for a fresh access token silently. If the
+    refresh token is rejected (e.g. revoked by admin), the browser step is
+    retried.
+
+    Access tokens are short-lived, so we re-login periodically on the same
+    900s cadence as :class:`SalesforceAuthOAuth`. This uses the cached refresh
+    token silently and never re-opens the browser during normal operation.
+    """
+
+    REFRESH_TOKEN_EXPIRATION_PERIOD = 900
+    DEFAULT_CACHE_DIR = Path.home() / ".tap-salesforce"
+
+    def __init__(self, credentials, is_sandbox=False, cache_dir=None):
+        super().__init__(credentials, is_sandbox=is_sandbox)
+        self._cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
+
+    def login(self):
+        try:
+            LOGGER.info("Attempting login via OAuth2 Authorization Code + PKCE (browser)")
+
+            token = browser_auth.acquire_token(
+                client_id=self._credentials.client_id,
+                domain=self._credentials.domain,
+                cache_dir=self._cache_dir,
+            )
+
+            self._access_token = token.access_token
+            self._instance_url = token.instance_url
+
+            LOGGER.info("Browser OAuth login successful")
         finally:
             LOGGER.info("Starting new login timer")
             self.login_timer = threading.Timer(self.REFRESH_TOKEN_EXPIRATION_PERIOD, self.login)

@@ -14,6 +14,7 @@ from singer import metadata, metrics
 import tap_salesforce.salesforce
 from tap_salesforce.salesforce import Salesforce
 from tap_salesforce.salesforce.credentials import (
+    BrowserCredentials,
     ClientCredentials,
     OAuthCredentials,
     PasswordCredentials,
@@ -40,6 +41,8 @@ REQUIRED_CONFIG_KEYS = ["api_type", "select_fields_by_default"]
 OAUTH_CONFIG_KEYS = OAuthCredentials._fields
 # OAuth 2.0 Client Credentials grant (client_id + client_secret + domain):
 CLIENT_CREDENTIALS_CONFIG_KEYS = ClientCredentials._fields
+# OAuth 2.0 Authorization Code + PKCE via browser (client_id + domain):
+BROWSER_CONFIG_KEYS = BrowserCredentials._fields
 # Legacy SOAP username/password/security_token:
 PASSWORD_CONFIG_KEYS = PasswordCredentials._fields
 
@@ -48,6 +51,7 @@ CONFIG = {
     "client_id": None,
     "client_secret": None,
     "domain": None,
+    "browser_auth": None,
     "start_date": None,
     "soql_filters": None,
 }

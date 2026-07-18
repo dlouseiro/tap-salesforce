@@ -8,10 +8,12 @@ against ``parse_credentials`` and ``SalesforceAuth.from_credentials`` only.
 import unittest
 
 from tap_salesforce.salesforce.credentials import (
+    BrowserCredentials,
     ClientCredentials,
     OAuthCredentials,
     PasswordCredentials,
     SalesforceAuth,
+    SalesforceAuthBrowser,
     SalesforceAuthClientCredentials,
     SalesforceAuthOAuth,
     SalesforceAuthPassword,
@@ -44,6 +46,30 @@ class ParseCredentialsTests(unittest.TestCase):
         }
         self.assertIsInstance(parse_credentials(config), ClientCredentials)
 
+    def test_browser_shape_inferred_when_no_secret(self):
+        config = {
+            "client_id": "ci",
+            "domain": "picnic-nl.my",
+        }
+        self.assertIsInstance(parse_credentials(config), BrowserCredentials)
+
+    def test_browser_auth_true_forces_browser_over_client_credentials(self):
+        config = {
+            "client_id": "ci",
+            "client_secret": "cs",  # would otherwise dispatch to Client Credentials
+            "domain": "picnic-nl.my",
+            "browser_auth": True,
+        }
+        self.assertIsInstance(parse_credentials(config), BrowserCredentials)
+
+    def test_browser_auth_true_without_required_fields_raises(self):
+        config = {"browser_auth": True, "client_id": "ci"}  # missing domain
+        # parse_credentials raises a bare ``Exception`` by design; keep that
+        # contract, but tighten the assertion via a message match to make the
+        # test explicit about what it's checking.
+        with self.assertRaisesRegex(Exception, "browser_auth=True requires"):
+            parse_credentials(config)
+
     def test_refresh_token_wins_over_client_credentials(self):
         # ``refresh_token`` populated → OAuth path takes precedence even when
         # ``domain`` is also present. Prevents accidentally re-authenticating
@@ -66,9 +92,7 @@ class FromCredentialsDispatchTests(unittest.TestCase):
     """``SalesforceAuth.from_credentials`` should map each namedtuple to its class."""
 
     def test_dispatches_oauth(self):
-        auth = SalesforceAuth.from_credentials(
-            OAuthCredentials(client_id="ci", client_secret="cs", refresh_token="rt")
-        )
+        auth = SalesforceAuth.from_credentials(OAuthCredentials(client_id="ci", client_secret="cs", refresh_token="rt"))
         self.assertIsInstance(auth, SalesforceAuthOAuth)
 
     def test_dispatches_client_credentials(self):
@@ -77,10 +101,12 @@ class FromCredentialsDispatchTests(unittest.TestCase):
         )
         self.assertIsInstance(auth, SalesforceAuthClientCredentials)
 
+    def test_dispatches_browser(self):
+        auth = SalesforceAuth.from_credentials(BrowserCredentials(client_id="ci", domain="picnic-nl.my"))
+        self.assertIsInstance(auth, SalesforceAuthBrowser)
+
     def test_dispatches_password(self):
-        auth = SalesforceAuth.from_credentials(
-            PasswordCredentials(username="u", password="p", security_token="t")
-        )
+        auth = SalesforceAuth.from_credentials(PasswordCredentials(username="u", password="p", security_token="t"))
         self.assertIsInstance(auth, SalesforceAuthPassword)
 
 

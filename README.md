@@ -37,12 +37,13 @@ pip install git+https://github.com/MeltanoLabs/tap-salesforce.git
 
 ### Authentication
 
-The tap supports three authentication flows. Pick one per environment; when
+The tap supports four authentication flows. Pick one per environment; when
 multiple credential shapes are populated, the first one in this list wins:
 
 1. **OAuth 2.0 Refresh Token grant** — pre-obtained refresh token, headless.
 2. **OAuth 2.0 Client Credentials grant** — machine-to-machine, no user context.
-3. **Legacy SOAP username/password/security_token** — retired by Salesforce Summer '27.
+3. **OAuth 2.0 Authorization Code + PKCE (browser)** — interactive local login.
+4. **Legacy SOAP username/password/security_token** — retired by Salesforce Summer '27.
 
 **Required for OAuth 2.0 Refresh Token grant**
 ```
@@ -65,6 +66,32 @@ multiple credential shapes are populated, the first one in this list wins:
 The `domain` must be a Salesforce My Domain (the `login` / `test` shortcuts
 are not accepted by Salesforce for this grant). The tap runs as the
 Connected App / External Client App's configured "Run As" user.
+
+**Required for OAuth 2.0 Authorization Code + PKCE (browser)**
+```
+{
+  "client_id": "secret_client_id",
+  "domain": "picnic-nl.my"
+}
+```
+
+Optionally pin the browser flow explicitly (useful when the same config
+file also carries a `client_secret` for prod runs):
+```
+{
+  "client_id": "secret_client_id",
+  "domain": "picnic-nl.my",
+  "browser_auth": true
+}
+```
+
+On the first run, the tap opens a browser window so you can log in with
+your personal Salesforce user; the resulting refresh token is cached at
+`~/.tap-salesforce/<domain>/<client_id>.json` (mode `0600`) and reused
+silently on subsequent runs. If the refresh token is later rejected
+(revoked, expired, etc.) the browser step is retried. Intended for local
+developer machines only — cron/production should use Client Credentials
+or the Refresh Token grant.
 
 **Required for username/password based authentication (legacy — SOAP)**
 ```

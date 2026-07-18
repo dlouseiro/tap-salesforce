@@ -10,6 +10,13 @@
     through `simple-salesforce`'s `SalesforceLogin`. Intended for
     machine-to-machine (cron / prod) execution as the External Client App's
     "Run As" user.
+  * Add support for the **OAuth 2.0 Authorization Code Flow with PKCE**
+    (browser) via new `client_id` + `domain` config keys, or explicit
+    `browser_auth: true`. Opens a browser on first run, caches the
+    resulting refresh token at `~/.tap-salesforce/<domain>/<client_id>.json`
+    (mode `0600`), and re-uses it silently on subsequent runs. Intended for
+    local developer machines. Implemented with stdlib + `requests` only
+    (no new runtime dependencies).
 
 ## meltano.1.5.0
 
