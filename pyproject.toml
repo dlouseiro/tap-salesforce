@@ -30,6 +30,8 @@ browser = ["keyring"]
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
 ruff = "*"
+tox = "*"
+pre-commit = "*"
 
 [tool.poetry.scripts]
 tap-salesforce = "tap_salesforce:main"
