@@ -1,4 +1,4 @@
-# pylint: disable=super-init-not-called
+"""Custom exceptions for the Salesforce tap."""
 
 
 class TapSalesforceExceptionError(Exception):
