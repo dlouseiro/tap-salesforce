@@ -29,6 +29,7 @@ browser = ["keyring"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
+pytest-mock = "*"
 ruff = "*"
 tox = "*"
 pre-commit = "*"

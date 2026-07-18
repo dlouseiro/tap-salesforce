@@ -1,4 +1,3 @@
-# pylint: disable=protected-access
 import csv
 import json
 import sys
@@ -23,7 +22,6 @@ DEFAULT_CHUNK_SIZE = 50000
 LOGGER = singer.get_logger()
 
 
-# pylint: disable=inconsistent-return-statements
 def find_parent(stream):
     parent_stream = stream
     if stream.endswith("CleanInfo"):
@@ -55,7 +53,6 @@ class Bulk:
 
         self.sf.jobs_completed += 1
 
-    # pylint: disable=line-too-long
     def check_bulk_quota_usage(self):
         endpoint = "limits"
         url = self.sf.data_url.format(self.sf.instance_url, self.sf.api_version, endpoint)
@@ -322,7 +319,6 @@ class Bulk:
         with metrics.http_request_timer("close_job"):
             self.sf._make_request("POST", url, headers=self._get_bulk_headers(), body=json.dumps(body))
 
-    # pylint: disable=no-self-use
     def _iter_lines(self, response):
         """Clone of the iter_lines function from the requests library with the change
         to pass keepends=True in order to ensure that we do not strip the line breaks
