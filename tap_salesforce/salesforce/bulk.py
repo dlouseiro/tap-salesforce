@@ -308,7 +308,10 @@ class Bulk:
                 column_name_list = next(csv_reader)
 
                 for line in csv_reader:
-                    rec = dict(zip(column_name_list, line))
+                    # strict=False preserves existing behaviour for malformed/truncated
+                    # rows (mismatched lengths silently zip to the shorter iterable)
+                    # rather than raising and aborting the sync mid-stream.
+                    rec = dict(zip(column_name_list, line, strict=False))
                     yield rec
 
     def _close_job(self, job_id):

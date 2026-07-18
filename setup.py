@@ -9,14 +9,14 @@ setup(
     author="Stitch",
     url="https://singer.io",
     classifiers=["Programming Language :: Python :: 3 :: Only"],
+    python_requires=">=3.10",
     py_modules=["tap_salesforce"],
     install_requires=[
-        "requests==2.32.2",
-        "singer-python~=5.13",
-        "xmltodict==0.11.0",
+        "requests==2.34.2",
+        "singer-python~=6.8",
+        "xmltodict==1.0.4",
         "simple-salesforce~=1.12",
-        # fix version conflicts, see https://gitlab.com/meltano/meltano/issues/193
-        "idna==3.7",
+        "idna==3.18",
         "cryptography",
         "pyOpenSSL",
     ],
@@ -26,6 +26,8 @@ setup(
         # of a plain file. Cron/prod installs using Client Credentials or the
         # legacy password flow never need this.
         "browser": ["keyring"],
+        # pip install -e .[test] to run the test suite (see tests/).
+        "test": ["pytest"],
     },
     entry_points="""
           [console_scripts]
