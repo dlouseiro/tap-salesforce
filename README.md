@@ -20,10 +20,10 @@ singer-io/tap-salesforce   (original Stitch project, last common version v1.4.24
 
 `CHANGELOG.md` entries and git tags are prefixed to show which fork introduced each change:
 
-| Prefix | Meaning |
-| --- | --- |
-| (none) / `meltano.` | Inherited from `MeltanoLabs/tap-salesforce` (or, further back, plain-numbered entries inherited from `singer-io/tap-salesforce`) |
-| `dlouseiro.` (changelog) / `dlouseiro-v*` (git tags) | Exclusive to this fork — never went upstream |
+| Prefix                                               | Meaning                                                                                                                          |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| (none) / `meltano.`                                  | Inherited from `MeltanoLabs/tap-salesforce` (or, further back, plain-numbered entries inherited from `singer-io/tap-salesforce`) |
+| `dlouseiro.` (changelog) / `dlouseiro-v*` (git tags) | Exclusive to this fork — never went upstream                                                                                     |
 
 Both lineages follow semver relative to their own prior version, not to each other — a `dlouseiro.` major bump doesn't imply anything about `MeltanoLabs`' own next release, and vice versa.
 
@@ -81,11 +81,11 @@ for subsequent headless runs.
 }
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `client_id` | Yes | External Client App's consumer key |
-| `domain` | Yes | Salesforce My Domain |
-| `redirect_uri` | No | Pin the callback URL (e.g. `http://localhost:29110/callback`). If omitted, an ephemeral loopback port is chosen at runtime. |
+| Parameter      | Required | Description                                                                                                                 |
+| -------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `client_id`    | Yes      | External Client App's consumer key                                                                                          |
+| `domain`       | Yes      | Salesforce My Domain                                                                                                        |
+| `redirect_uri` | No       | Pin the callback URL (e.g. `http://localhost:29110/callback`). If omitted, an ephemeral loopback port is chosen at runtime. |
 
 The refresh token is cached in your OS keychain when the `keyring` extra is
 installed (`pip install tap-salesforce[browser]`). Without it, falls back to
@@ -104,11 +104,11 @@ For production/CI. No user interaction, runs as the app's configured "Run As" us
 }
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `client_id` | Yes | External Client App's consumer key |
-| `client_secret` | Yes | External Client App's consumer secret |
-| `domain` | Yes | Salesforce My Domain |
+| Parameter       | Required | Description                           |
+| --------------- | -------- | ------------------------------------- |
+| `client_id`     | Yes      | External Client App's consumer key    |
+| `client_secret` | Yes      | External Client App's consumer secret |
+| `domain`        | Yes      | Salesforce My Domain                  |
 
 #### `refresh_token` — OAuth 2.0 Refresh Token (deprecated)
 
@@ -124,12 +124,12 @@ Pre-obtained refresh token flow. **Deprecated** — migrate to `client_credentia
 }
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `client_id` | Yes | OAuth app's consumer key |
-| `client_secret` | Yes | OAuth app's consumer secret |
-| `refresh_token` | Yes | Long-lived refresh token |
-| `domain` | Yes | Salesforce My Domain (or `"login"` / `"test"` for generic endpoints) |
+| Parameter       | Required | Description                                                          |
+| --------------- | -------- | -------------------------------------------------------------------- |
+| `client_id`     | Yes      | OAuth app's consumer key                                             |
+| `client_secret` | Yes      | OAuth app's consumer secret                                          |
+| `refresh_token` | Yes      | Long-lived refresh token                                             |
+| `domain`        | Yes      | Salesforce My Domain (or `"login"` / `"test"` for generic endpoints) |
 
 #### `password` — Legacy SOAP login (deprecated)
 
@@ -146,12 +146,12 @@ Salesforce retires SOAP login (Summer '27). Migrate to `client_credentials`.
 }
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `username` | Yes | Salesforce username |
-| `password` | Yes | Salesforce password |
-| `security_token` | Yes | Salesforce security token |
-| `domain` | Yes | `"login"` (production), `"test"` (sandbox), or a My Domain string |
+| Parameter        | Required | Description                                                       |
+| ---------------- | -------- | ----------------------------------------------------------------- |
+| `username`       | Yes      | Salesforce username                                               |
+| `password`       | Yes      | Salesforce password                                               |
+| `security_token` | Yes      | Salesforce security token                                         |
+| `domain`         | Yes      | `"login"` (production), `"test"` (sandbox), or a My Domain string |
 
 ### General Configuration
 
@@ -194,12 +194,12 @@ All authentication methods support the following optional parameters:
 
 This version introduces **breaking changes** to the authentication configuration:
 
-| Old config | New config |
-|---|---|
-| `"is_sandbox": true` | Use sandbox domain: `"domain": "mycompany--uat.sandbox.my"` |
-| `"browser_auth": true` | `"auth_method": "browser"` |
-| (implicit shape detection) | `"auth_method": "client_credentials"` (or `"refresh_token"`, `"password"`) |
-| `"domain"` not required for refresh_token/password | `"domain"` is now required for ALL methods |
+| Old config                                         | New config                                                                 |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| `"is_sandbox": true`                               | Use sandbox domain: `"domain": "mycompany--uat.sandbox.my"`                |
+| `"browser_auth": true`                             | `"auth_method": "browser"`                                                 |
+| (implicit shape detection)                         | `"auth_method": "client_credentials"` (or `"refresh_token"`, `"password"`) |
+| `"domain"` not required for refresh_token/password | `"domain"` is now required for ALL methods                                 |
 
 ## Run Discovery
 
