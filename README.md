@@ -1,28 +1,42 @@
 # tap-salesforce
 
-[![CircleCI Build Status](https://circleci.com/gh/singer-io/tap-salesforce.png)](https://circleci.com/gh/singer-io/tap-salesforce.png)
-
-
 [Singer](https://www.singer.io/) tap that extracts data from a [Salesforce](https://www.salesforce.com/) Account and produces JSON-formatted data following the [Singer spec](https://github.com/singer-io/getting-started/blob/master/SPEC.md).
 
-This is a forked version of [tap-salesforce (v1.4.24)](https://github.com/singer-io/tap-salesforce) that maintained by the Meltano team.
+## Fork lineage
 
-Main differences from the original version:
+This repo is a personal fork, two levels removed from the original:
 
-- Support for `username/password/security_token` authentication
-- Support for concurrent execution (8 threads by default) when accessing different API endpoints to speed up the extraction process
-- Support for much faster discovery
+```
+singer-io/tap-salesforce   (original Stitch project, last common version v1.4.24)
+        └─ MeltanoLabs/tap-salesforce   ("meltano." versions in CHANGELOG.md)
+                └─ dlouseiro/tap-salesforce   (this repo — "dlouseiro." versions)
+```
+
+- [`singer-io/tap-salesforce`](https://github.com/singer-io/tap-salesforce) — the original Stitch-maintained tap.
+- [`MeltanoLabs/tap-salesforce`](https://github.com/MeltanoLabs/tap-salesforce) — Meltano's fork, adding `username/password/security_token` auth, concurrent execution across streams, and faster discovery.
+- **This repo** — adds OAuth 2.0 (Client Credentials + browser/PKCE) authentication, a Python 3.10+ floor, and assorted fixes/config options (see `CHANGELOG.md`).
+
+### Versioning
+
+`CHANGELOG.md` entries and git tags are prefixed to show which fork introduced each change:
+
+| Prefix | Meaning |
+| --- | --- |
+| (none) / `meltano.` | Inherited from `MeltanoLabs/tap-salesforce` (or, further back, plain-numbered entries inherited from `singer-io/tap-salesforce`) |
+| `dlouseiro.` (changelog) / `dlouseiro-v*` (git tags) | Exclusive to this fork — never went upstream |
+
+Both lineages follow semver relative to their own prior version, not to each other — a `dlouseiro.` major bump doesn't imply anything about `MeltanoLabs`' own next release, and vice versa.
 
 # Quickstart
 
 ## Install the tap
 
-This version of `tap-salesforce` is not available on PyPi, so you have to fetch it directly from the Meltano maintained project:
+This version of `tap-salesforce` is not available on PyPI, so you fetch it directly from this fork:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install git+https://github.com/MeltanoLabs/tap-salesforce.git
+pip install git+https://github.com/dlouseiro/tap-salesforce.git
 ```
 
 ## Create a Config file
