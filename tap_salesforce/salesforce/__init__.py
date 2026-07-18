@@ -240,6 +240,7 @@ class Salesforce:
         api_version=None,
         ignore_formula_fields=False,
         soql_filters=None,
+        redirect_uri=None,
     ):
         self.api_type = api_type.upper() if api_type else None
         self.session = requests.Session()
@@ -263,7 +264,7 @@ class Salesforce:
         self.lookback_window = lookback_window
         self.api_version = api_version
 
-        self.auth = SalesforceAuth.from_credentials(credentials, is_sandbox=self.is_sandbox)
+        self.auth = SalesforceAuth.from_credentials(credentials, is_sandbox=self.is_sandbox, redirect_uri=redirect_uri)
 
         # validate start_date
         self.default_start_date = (

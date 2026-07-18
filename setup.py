@@ -14,12 +14,19 @@ setup(
         "requests==2.32.2",
         "singer-python~=5.13",
         "xmltodict==0.11.0",
-        "simple-salesforce<1.0",  # v1.0 requires `requests==2.22.0`
+        "simple-salesforce~=1.12",
         # fix version conflicts, see https://gitlab.com/meltano/meltano/issues/193
         "idna==3.7",
         "cryptography",
         "pyOpenSSL",
     ],
+    extras_require={
+        # Only needed for the interactive browser (Authorization Code + PKCE)
+        # auth flow. Lets the refresh-token cache use the OS keychain instead
+        # of a plain file. Cron/prod installs using Client Credentials or the
+        # legacy password flow never need this.
+        "browser": ["keyring"],
+    },
     entry_points="""
           [console_scripts]
           tap-salesforce=tap_salesforce:main
