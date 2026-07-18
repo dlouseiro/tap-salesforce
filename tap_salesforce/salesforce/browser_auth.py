@@ -3,7 +3,9 @@
 This module implements the interactive half of a Salesforce OAuth flow:
 
 1. Open a browser to Salesforce's ``/services/oauth2/authorize`` endpoint.
-2. Listen on ``http://localhost:<port>`` for the redirect.
+2. Listen on a loopback port for the redirect — by default an ephemeral
+   port is chosen at runtime, but a caller can pin a fixed ``redirect_uri``
+   (port and/or host) to match a statically-registered callback URL.
 3. Exchange the authorization code (PKCE-protected) at
    ``/services/oauth2/token`` for an access + refresh token pair.
 4. Cache the refresh token via :mod:`tap_salesforce.salesforce.token_cache` so
@@ -71,6 +73,33 @@ def _pick_free_port() -> int:
         return s.getsockname()[1]
 
 
+def _resolve_redirect_uri(redirect_uri: str | None) -> tuple[str, int]:
+    """Resolve the redirect URI to send to Salesforce, and the local port to bind.
+
+    - If ``redirect_uri`` is ``None``, defaults to ``http://localhost/callback``
+      with a freshly chosen ephemeral port.
+    - If ``redirect_uri`` already specifies a port (e.g. because the
+      External Client App's callback URL is registered with a fixed port —
+      common when the port itself can't be made dynamic on the Salesforce
+      side), that literal address is used unchanged.
+    - If ``redirect_uri`` has no port (e.g. a bare ``http://localhost/callback``,
+      or a proxied hostname with no port such as in some remote dev
+      environments), an ephemeral port is chosen and appended.
+
+    In both cases the local HTTP listener always binds on ``127.0.0.1`` —
+    this matches how ``localhost`` (and proxied hostnames that ultimately
+    forward back to the developer's machine) resolve.
+    """
+    parsed = urllib.parse.urlsplit(redirect_uri or "http://localhost/callback")
+    if parsed.port is not None:
+        return redirect_uri, parsed.port  # type: ignore[return-value]
+
+    port = _pick_free_port()
+    host = parsed.hostname or "localhost"
+    resolved = urllib.parse.urlunsplit((parsed.scheme or "http", f"{host}:{port}", parsed.path or "/callback", "", ""))
+    return resolved, port
+
+
 def _token_endpoint(domain: str) -> str:
     # ``domain`` is a Salesforce My Domain string such as ``"picnic-nl.my"`` —
     # the ``.my`` suffix is already part of the domain, so we only append
@@ -118,14 +147,13 @@ def _run_browser_flow(
     client_id: str,
     domain: str,
     scopes: Sequence[str],
-    redirect_port: int,
+    redirect_uri: str | None,
     timeout_seconds: int,
 ) -> dict[str, Any]:
     """Drive the interactive PKCE flow and return the token endpoint response."""
     verifier, challenge = _generate_pkce_pair()
     state = secrets.token_urlsafe(16)
-    port = redirect_port or _pick_free_port()
-    redirect_uri = f"http://localhost:{port}/callback"
+    redirect_uri, port = _resolve_redirect_uri(redirect_uri)
 
     authorize_url = (
         _authorize_endpoint(domain)
@@ -203,7 +231,7 @@ def acquire_token(
     domain: str,
     cache_dir: Path,
     scopes: Sequence[str] = DEFAULT_SCOPES,
-    redirect_port: int = 0,
+    redirect_uri: str | None = None,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> AcquiredToken:
     """Acquire a Salesforce access token using PKCE + refresh-token caching.
@@ -215,6 +243,18 @@ def acquire_token(
     2. Otherwise — or if the cached refresh token is rejected by Salesforce —
        open the user's browser, complete the Authorization Code Flow with
        PKCE, cache the new refresh token, and return the access token.
+
+    Args:
+        redirect_uri: The callback URL to send to Salesforce and to bind the
+            local listener to. Defaults to ``http://localhost/callback`` with
+            an ephemeral port chosen at runtime. If a port is included (e.g.
+            ``http://localhost:1717/callback``), that literal address is used
+            — required when the External Client App's registered callback
+            URL pins a specific port rather than accepting any loopback
+            port. If no port is included, one is still chosen dynamically
+            and appended, preserving the given host/path (useful for
+            environments where the callback is proxied through a fixed
+            hostname but the port itself may vary).
     """
     cached_refresh_token = load_refresh_token(cache_dir, domain, client_id)
     if cached_refresh_token is not None:
@@ -228,7 +268,7 @@ def acquire_token(
         except requests.HTTPError as e:
             LOGGER.warning("Cached refresh token rejected (%s); falling back to browser flow", e)
 
-    body = _run_browser_flow(client_id, domain, scopes, redirect_port, timeout_seconds)
+    body = _run_browser_flow(client_id, domain, scopes, redirect_uri, timeout_seconds)
     refresh_token = body.get("refresh_token")
     if refresh_token:
         store_refresh_token(cache_dir, domain, client_id, refresh_token)

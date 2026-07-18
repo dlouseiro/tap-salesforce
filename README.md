@@ -93,6 +93,21 @@ silently on subsequent runs. If the refresh token is later rejected
 developer machines only — cron/production should use Client Credentials
 or the Refresh Token grant.
 
+By default the tap listens on an ephemeral loopback port chosen at
+runtime, so no port needs to be hardcoded. If your External Client App's
+callback URL is registered with a fixed port instead (or you need a
+specific host/path, e.g. behind a local proxy), set `redirect_uri`:
+```
+{
+  "client_id": "secret_client_id",
+  "domain": "picnic-nl.my",
+  "redirect_uri": "http://localhost:1717/callback"
+}
+```
+If `redirect_uri` is provided without a port (e.g. `"http://localhost/callback"`),
+the tap still chooses an ephemeral port and appends it, keeping the given
+host and path.
+
 **Required for username/password based authentication (legacy — SOAP)**
 ```
 {

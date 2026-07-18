@@ -105,6 +105,24 @@ class FromCredentialsDispatchTests(unittest.TestCase):
         auth = SalesforceAuth.from_credentials(BrowserCredentials(client_id="ci", domain="picnic-nl.my"))
         self.assertIsInstance(auth, SalesforceAuthBrowser)
 
+    def test_dispatches_browser_forwards_redirect_uri(self):
+        # redirect_uri is only meaningful for the Browser slot; from_credentials
+        # should forward it there without erroring for the other credential shapes.
+        auth = SalesforceAuth.from_credentials(
+            BrowserCredentials(client_id="ci", domain="picnic-nl.my"),
+            redirect_uri="http://localhost:1717/callback",
+        )
+        self.assertEqual(auth._redirect_uri, "http://localhost:1717/callback")
+
+    def test_redirect_uri_is_a_no_op_for_non_browser_credentials(self):
+        # Passing redirect_uri alongside any other credential shape must not
+        # raise — Client Credentials/OAuth/Password simply ignore it.
+        auth = SalesforceAuth.from_credentials(
+            ClientCredentials(client_id="ci", client_secret="cs", domain="picnic-nl.my"),
+            redirect_uri="http://localhost:1717/callback",
+        )
+        self.assertIsInstance(auth, SalesforceAuthClientCredentials)
+
     def test_dispatches_password(self):
         auth = SalesforceAuth.from_credentials(PasswordCredentials(username="u", password="p", security_token="t"))
         self.assertIsInstance(auth, SalesforceAuthPassword)

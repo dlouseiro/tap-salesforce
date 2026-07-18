@@ -44,5 +44,31 @@ class EndpointTests(unittest.TestCase):
         )
 
 
+class ResolveRedirectUriTests(unittest.TestCase):
+    def test_none_defaults_to_localhost_with_ephemeral_port(self):
+        resolved, port = browser_auth._resolve_redirect_uri(None)
+        self.assertEqual(resolved, f"http://localhost:{port}/callback")
+        self.assertGreater(port, 0)
+
+    def test_explicit_port_is_used_verbatim(self):
+        resolved, port = browser_auth._resolve_redirect_uri("http://localhost:1717/callback")
+        self.assertEqual(resolved, "http://localhost:1717/callback")
+        self.assertEqual(port, 1717)
+
+    def test_no_port_appends_ephemeral_port_keeping_host_and_path(self):
+        resolved, port = browser_auth._resolve_redirect_uri("http://my-proxy-host/oauth/callback")
+        self.assertEqual(resolved, f"http://my-proxy-host:{port}/oauth/callback")
+        self.assertGreater(port, 0)
+
+    def test_no_path_defaults_to_callback(self):
+        resolved, port = browser_auth._resolve_redirect_uri("http://localhost")
+        self.assertEqual(resolved, f"http://localhost:{port}/callback")
+
+    def test_explicit_port_with_different_host_is_unchanged(self):
+        resolved, port = browser_auth._resolve_redirect_uri("https://my-proxy-host:9999/callback")
+        self.assertEqual(resolved, "https://my-proxy-host:9999/callback")
+        self.assertEqual(port, 9999)
+
+
 if __name__ == "__main__":
     unittest.main()

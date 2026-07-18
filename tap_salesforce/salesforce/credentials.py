@@ -80,18 +80,30 @@ class SalesforceAuth:
         return self._instance_url
 
     @classmethod
-    def from_credentials(cls, credentials, **kwargs):
+    def from_credentials(cls, credentials, is_sandbox=False, cache_dir=None, redirect_uri=None):
+        """Dispatch to the auth class matching the given credentials shape.
+
+        ``cache_dir`` and ``redirect_uri`` are only meaningful for
+        :class:`SalesforceAuthBrowser` — they're accepted here (rather than
+        via a blind ``**kwargs`` passthrough) so that passing them for any
+        other credential shape is a no-op instead of a ``TypeError``.
+        """
         if isinstance(credentials, OAuthCredentials):
-            return SalesforceAuthOAuth(credentials, **kwargs)
+            return SalesforceAuthOAuth(credentials, is_sandbox=is_sandbox)
 
         if isinstance(credentials, ClientCredentials):
-            return SalesforceAuthClientCredentials(credentials, **kwargs)
+            return SalesforceAuthClientCredentials(credentials, is_sandbox=is_sandbox)
 
         if isinstance(credentials, BrowserCredentials):
-            return SalesforceAuthBrowser(credentials, **kwargs)
+            return SalesforceAuthBrowser(
+                credentials,
+                is_sandbox=is_sandbox,
+                cache_dir=cache_dir,
+                redirect_uri=redirect_uri,
+            )
 
         if isinstance(credentials, PasswordCredentials):
-            return SalesforceAuthPassword(credentials, **kwargs)
+            return SalesforceAuthPassword(credentials, is_sandbox=is_sandbox)
 
         raise Exception("Invalid credentials")
 
@@ -207,14 +219,22 @@ class SalesforceAuthBrowser(SalesforceAuth):
     Access tokens are short-lived, so we re-login periodically on the same
     900s cadence as :class:`SalesforceAuthOAuth`. This uses the cached refresh
     token silently and never re-opens the browser during normal operation.
+
+    ``redirect_uri`` is optional. If omitted, an ephemeral loopback port is
+    chosen at runtime (fine for a self-authorizing External Client App with
+    no fixed callback port). If provided and it includes a port, that exact
+    address is used — required when the App's registered callback URL pins
+    a specific port. If provided without a port, the given host/path is kept
+    and a port is still chosen dynamically and appended.
     """
 
     REFRESH_TOKEN_EXPIRATION_PERIOD = 900
     DEFAULT_CACHE_DIR = Path.home() / ".tap-salesforce"
 
-    def __init__(self, credentials, is_sandbox=False, cache_dir=None):
+    def __init__(self, credentials, is_sandbox=False, cache_dir=None, redirect_uri=None):
         super().__init__(credentials, is_sandbox=is_sandbox)
         self._cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
+        self._redirect_uri = redirect_uri
 
     def login(self):
         try:
@@ -224,6 +244,7 @@ class SalesforceAuthBrowser(SalesforceAuth):
                 client_id=self._credentials.client_id,
                 domain=self._credentials.domain,
                 cache_dir=self._cache_dir,
+                redirect_uri=self._redirect_uri,
             )
 
             self._access_token = token.access_token

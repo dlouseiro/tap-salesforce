@@ -52,6 +52,7 @@ CONFIG = {
     "client_secret": None,
     "domain": None,
     "browser_auth": None,
+    "redirect_uri": None,
     "start_date": None,
     "soql_filters": None,
 }
@@ -529,6 +530,7 @@ def main_impl():
             api_version=api_version,
             ignore_formula_fields=CONFIG.get("ignore_formula_fields", False),
             soql_filters=CONFIG.get("soql_filters") or {},
+            redirect_uri=CONFIG.get("redirect_uri"),
         )
         sf.login()
 
