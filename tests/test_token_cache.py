@@ -55,34 +55,34 @@ class FileCacheTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_load_returns_none_when_missing(self):
-        self.assertIsNone(token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"))
+        self.assertIsNone(token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"))
 
     def test_store_then_load_roundtrip(self):
-        token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt-abc")
+        token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt-abc")
         self.assertEqual(
-            token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"),
+            token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"),
             "rt-abc",
         )
 
     def test_store_uses_per_domain_directory_and_per_client_file(self):
-        token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt")
-        expected_file = self.cache_dir / "picnic-nl.my" / "ci.json"
+        token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt")
+        expected_file = self.cache_dir / "mycompany.my" / "ci.json"
         self.assertTrue(expected_file.exists())
         payload = json.loads(expected_file.read_text())
         self.assertEqual(payload["refresh_token"], "rt")
         self.assertIn("obtained_at", payload)
 
     def test_load_returns_none_on_corrupt_json(self):
-        target = self.cache_dir / "picnic-nl.my" / "ci.json"
+        target = self.cache_dir / "mycompany.my" / "ci.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("not-json")
-        self.assertIsNone(token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"))
+        self.assertIsNone(token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"))
 
     @unittest.skipIf(sys.platform.startswith("win"), "POSIX file modes only")
     def test_store_writes_owner_only_permissions(self):
-        token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt")
-        file_path = self.cache_dir / "picnic-nl.my" / "ci.json"
-        dir_path = self.cache_dir / "picnic-nl.my"
+        token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt")
+        file_path = self.cache_dir / "mycompany.my" / "ci.json"
+        dir_path = self.cache_dir / "mycompany.my"
         file_mode = stat.S_IMODE(os.stat(file_path).st_mode)
         dir_mode = stat.S_IMODE(os.stat(dir_path).st_mode)
         self.assertEqual(file_mode, 0o600)
@@ -102,51 +102,51 @@ class KeyringBackendTests(unittest.TestCase):
     def test_store_prefers_keyring_over_file_when_available(self):
         fake = _FakeKeyring()
         with patch.object(token_cache, "keyring", fake):
-            token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt-keyring")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt-keyring")
             self.assertEqual(
-                token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"),
+                token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"),
                 "rt-keyring",
             )
         # Nothing should have been written to disk — the keyring succeeded.
         with patch.object(token_cache, "keyring", None):
-            self.assertIsNone(token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"))
+            self.assertIsNone(token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"))
 
     def test_load_falls_back_to_file_when_keyring_not_installed(self):
         with patch.object(token_cache, "keyring", None):
-            token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt-file")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt-file")
             self.assertEqual(
-                token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"),
+                token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"),
                 "rt-file",
             )
 
     def test_store_falls_back_to_file_when_keyring_backend_broken(self):
         with patch.object(token_cache, "keyring", _BrokenKeyring()):
-            token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt-fallback")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt-fallback")
         # Confirm it landed on disk, not silently dropped.
         with patch.object(token_cache, "keyring", None):
             self.assertEqual(
-                token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"),
+                token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"),
                 "rt-fallback",
             )
 
     def test_load_falls_back_to_file_when_keyring_backend_broken(self):
         with patch.object(token_cache, "keyring", None):
-            token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci", "rt-existing")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci", "rt-existing")
         with patch.object(token_cache, "keyring", _BrokenKeyring()):
             self.assertEqual(
-                token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci"),
+                token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci"),
                 "rt-existing",
             )
 
     def test_keyring_entries_are_isolated_per_domain_and_client(self):
         fake = _FakeKeyring()
         with patch.object(token_cache, "keyring", fake):
-            token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci-a", "rt-a")
-            token_cache.store_refresh_token(self.cache_dir, "picnic-de.my", "ci-a", "rt-b")
-            token_cache.store_refresh_token(self.cache_dir, "picnic-nl.my", "ci-c", "rt-c")
-            self.assertEqual(token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci-a"), "rt-a")
-            self.assertEqual(token_cache.load_refresh_token(self.cache_dir, "picnic-de.my", "ci-a"), "rt-b")
-            self.assertEqual(token_cache.load_refresh_token(self.cache_dir, "picnic-nl.my", "ci-c"), "rt-c")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci-a", "rt-a")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany-de.my", "ci-a", "rt-b")
+            token_cache.store_refresh_token(self.cache_dir, "mycompany.my", "ci-c", "rt-c")
+            self.assertEqual(token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci-a"), "rt-a")
+            self.assertEqual(token_cache.load_refresh_token(self.cache_dir, "mycompany-de.my", "ci-a"), "rt-b")
+            self.assertEqual(token_cache.load_refresh_token(self.cache_dir, "mycompany.my", "ci-c"), "rt-c")
 
 
 if __name__ == "__main__":

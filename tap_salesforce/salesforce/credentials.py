@@ -1,5 +1,19 @@
+"""Authentication credential parsing and Salesforce auth backends.
+
+The tap requires an explicit ``auth_method`` in the config to select which
+OAuth flow to use. Each method has its own required fields:
+
+- ``browser``: ``client_id``, ``domain``
+- ``client_credentials``: ``client_id``, ``client_secret``, ``domain``
+- ``refresh_token`` (deprecated): ``client_id``, ``client_secret``, ``refresh_token``, ``domain``
+- ``password`` (deprecated): ``username``, ``password``, ``security_token``, ``domain``
+"""
+
+from __future__ import annotations
+
 import logging
 import threading
+import warnings
 from collections import namedtuple
 from pathlib import Path
 
@@ -11,54 +25,90 @@ from tap_salesforce.salesforce import browser_auth
 LOGGER = logging.getLogger(__name__)
 
 
-OAuthCredentials = namedtuple("OAuthCredentials", ("client_id", "client_secret", "refresh_token"))
+BrowserCredentials = namedtuple("BrowserCredentials", ("client_id", "domain"))
 
 ClientCredentials = namedtuple("ClientCredentials", ("client_id", "client_secret", "domain"))
 
-BrowserCredentials = namedtuple("BrowserCredentials", ("client_id", "domain"))
+OAuthCredentials = namedtuple("OAuthCredentials", ("client_id", "client_secret", "refresh_token", "domain"))
 
-PasswordCredentials = namedtuple("PasswordCredentials", ("username", "password", "security_token"))
-
-
-# Priority order (first fully-populated shape wins) — most specific first.
-# ``OAuthCredentials`` and ``ClientCredentials`` both include ``client_id`` and
-# ``client_secret``; ``refresh_token`` being present is the signal for the Refresh
-# Token grant, so it must be checked before Client Credentials. ``BrowserCredentials``
-# is a strict subset of ``ClientCredentials`` fields and therefore comes after it —
-# ``client_secret`` being populated means "use Client Credentials", not Browser.
-_CREDENTIAL_SHAPES = (
-    OAuthCredentials,
-    ClientCredentials,
-    BrowserCredentials,
-    PasswordCredentials,
-)
+PasswordCredentials = namedtuple("PasswordCredentials", ("username", "password", "security_token", "domain"))
 
 
-def parse_credentials(config):
-    # Explicit override: ``browser_auth=True`` short-circuits to the browser
-    # flow even when ``client_secret`` is populated. Handy for local dev when
-    # the same config file also carries the prod client_secret via Vault.
-    if config.get("browser_auth") is True:
-        browser = BrowserCredentials(*(config.get(key) for key in BrowserCredentials._fields))
-        if all(browser):
-            return browser
-        raise Exception("browser_auth=True requires 'client_id' and 'domain' to be set.")
+AUTH_METHODS = {
+    "browser": {"required": BrowserCredentials._fields, "cls": BrowserCredentials},
+    "client_credentials": {"required": ClientCredentials._fields, "cls": ClientCredentials},
+    "refresh_token": {"required": OAuthCredentials._fields, "cls": OAuthCredentials},
+    "password": {"required": PasswordCredentials._fields, "cls": PasswordCredentials},
+}
 
-    for cls in _CREDENTIAL_SHAPES:
-        creds = cls(*(config.get(key) for key in cls._fields))
-        if all(creds):
-            return creds
+DEPRECATED_METHODS = {"refresh_token", "password"}
 
-    raise Exception("Cannot create credentials from config.")
+
+def parse_credentials(config: dict):
+    """Parse credentials from config using the explicit ``auth_method`` key.
+
+    Raises a clear error if ``auth_method`` is missing or invalid, or if
+    required fields for the chosen method are not populated.
+    """
+    auth_method = config.get("auth_method")
+
+    if not auth_method:
+        raise ValueError(
+            f"Config key 'auth_method' is required. Supported values: {', '.join(sorted(AUTH_METHODS.keys()))}"
+        )
+
+    if auth_method not in AUTH_METHODS:
+        raise ValueError(
+            f"Invalid auth_method '{auth_method}'. Supported values: {', '.join(sorted(AUTH_METHODS.keys()))}"
+        )
+
+    if auth_method in DEPRECATED_METHODS:
+        warnings.warn(
+            f"auth_method='{auth_method}' is deprecated and will be removed in a future version. "
+            "Migrate to 'client_credentials' (for production/CI) or 'browser' (for local dev).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    method_spec = AUTH_METHODS[auth_method]
+    required_fields = method_spec["required"]
+    cls = method_spec["cls"]
+
+    values = {field: config.get(field) for field in required_fields}
+    missing = [field for field, val in values.items() if not val]
+
+    if missing:
+        raise ValueError(
+            f"auth_method='{auth_method}' requires the following config keys: "
+            f"{', '.join(required_fields)}. Missing: {', '.join(missing)}"
+        )
+
+    return cls(**values)
+
+
+def _derive_login_url(domain: str) -> str:
+    """Derive the OAuth2 token endpoint URL from the Salesforce domain.
+
+    For ECA-based flows (client_credentials, browser), the domain IS the
+    My Domain (e.g. ``mycompany.my``) and the endpoint is
+    ``https://{domain}.salesforce.com/services/oauth2/token``.
+
+    For legacy flows (refresh_token, password), the domain serves the same
+    purpose — ``login`` for production, ``test`` for sandbox, or a My Domain
+    string for orgs that have disabled the generic login endpoints.
+    """
+    if domain in ("login", "test"):
+        return f"https://{domain}.salesforce.com/services/oauth2/token"
+    return f"https://{domain}.salesforce.com/services/oauth2/token"
 
 
 class SalesforceAuth:
-    def __init__(self, credentials, is_sandbox=False):
-        self.is_sandbox = is_sandbox
+    """Base class for Salesforce authentication backends."""
+
+    def __init__(self, credentials):
         self._credentials = credentials
         self._access_token = None
         self._instance_url = None
-        self._auth_header = None
         self.login_timer = None
 
     def login(self):
@@ -80,54 +130,44 @@ class SalesforceAuth:
         return self._instance_url
 
     @classmethod
-    def from_credentials(cls, credentials, is_sandbox=False, cache_dir=None, redirect_uri=None):
-        """Dispatch to the auth class matching the given credentials shape.
-
-        ``cache_dir`` and ``redirect_uri`` are only meaningful for
-        :class:`SalesforceAuthBrowser` — they're accepted here (rather than
-        via a blind ``**kwargs`` passthrough) so that passing them for any
-        other credential shape is a no-op instead of a ``TypeError``.
-        """
-        if isinstance(credentials, OAuthCredentials):
-            return SalesforceAuthOAuth(credentials, is_sandbox=is_sandbox)
+    def from_credentials(cls, credentials, redirect_uri=None):
+        """Dispatch to the auth class matching the given credentials shape."""
+        if isinstance(credentials, BrowserCredentials):
+            return SalesforceAuthBrowser(credentials, redirect_uri=redirect_uri)
 
         if isinstance(credentials, ClientCredentials):
-            return SalesforceAuthClientCredentials(credentials, is_sandbox=is_sandbox)
+            return SalesforceAuthClientCredentials(credentials)
 
-        if isinstance(credentials, BrowserCredentials):
-            return SalesforceAuthBrowser(
-                credentials,
-                is_sandbox=is_sandbox,
-                cache_dir=cache_dir,
-                redirect_uri=redirect_uri,
-            )
+        if isinstance(credentials, OAuthCredentials):
+            return SalesforceAuthOAuth(credentials)
 
         if isinstance(credentials, PasswordCredentials):
-            return SalesforceAuthPassword(credentials, is_sandbox=is_sandbox)
+            return SalesforceAuthPassword(credentials)
 
-        raise Exception("Invalid credentials")
+        raise ValueError(f"Unrecognized credentials type: {type(credentials)}")
 
 
 class SalesforceAuthOAuth(SalesforceAuth):
-    # The minimum expiration setting for SF Refresh Tokens is 15 minutes
+    """OAuth 2.0 Refresh Token grant (deprecated)."""
+
     REFRESH_TOKEN_EXPIRATION_PERIOD = 900
 
     @property
-    def _login_body(self):
-        return {"grant_type": "refresh_token", **self._credentials._asdict()}
+    def _login_url(self):
+        return _derive_login_url(self._credentials.domain)
 
     @property
-    def _login_url(self):
-        login_url = "https://login.salesforce.com/services/oauth2/token"
-
-        if self.is_sandbox:
-            login_url = "https://test.salesforce.com/services/oauth2/token"
-
-        return login_url
+    def _login_body(self):
+        return {
+            "grant_type": "refresh_token",
+            "client_id": self._credentials.client_id,
+            "client_secret": self._credentials.client_secret,
+            "refresh_token": self._credentials.refresh_token,
+        }
 
     def login(self):
         try:
-            LOGGER.info("Attempting login via OAuth2")
+            LOGGER.info("Attempting login via OAuth2 Refresh Token")
 
             resp = requests.post(
                 self._login_url,
@@ -138,7 +178,7 @@ class SalesforceAuthOAuth(SalesforceAuth):
             resp.raise_for_status()
             auth = resp.json()
 
-            LOGGER.info("OAuth2 login successful")
+            LOGGER.info("OAuth2 Refresh Token login successful")
             self._access_token = auth["access_token"]
             self._instance_url = auth["instance_url"]
         except Exception as e:
@@ -153,30 +193,20 @@ class SalesforceAuthOAuth(SalesforceAuth):
 
 
 class SalesforceAuthPassword(SalesforceAuth):
-    def login(self):
-        # ``simple-salesforce`` >=1.0 replaced the ``sandbox`` kwarg with ``domain``:
-        # ``"test"`` targets the sandbox login endpoint, ``"login"`` targets production.
-        login = SalesforceLogin(
-            domain="test" if self.is_sandbox else "login",
-            **self._credentials._asdict(),
-        )
+    """Legacy SOAP username/password/security_token grant (deprecated)."""
 
-        self._access_token, host = login
+    def login(self):
+        self._access_token, host = SalesforceLogin(
+            domain=self._credentials.domain,
+            username=self._credentials.username,
+            password=self._credentials.password,
+            security_token=self._credentials.security_token,
+        )
         self._instance_url = "https://" + host
 
 
 class SalesforceAuthClientCredentials(SalesforceAuth):
-    """OAuth 2.0 Client Credentials grant.
-
-    Machine-to-machine authentication. Credentials are the External Client App's
-    ``consumer_key`` (``client_id``) and ``consumer_secret`` (``client_secret``);
-    identity is the app's configured "Run As" user. Requires a Salesforce My
-    Domain (``login``/``test`` are not accepted by Salesforce for this grant).
-
-    The Salesforce access token is short-lived, so we re-login periodically to
-    keep long-running syncs healthy — matching the pattern used by
-    ``SalesforceAuthOAuth``.
-    """
+    """OAuth 2.0 Client Credentials grant (machine-to-machine)."""
 
     REFRESH_TOKEN_EXPIRATION_PERIOD = 900
 
@@ -184,9 +214,6 @@ class SalesforceAuthClientCredentials(SalesforceAuth):
         try:
             LOGGER.info("Attempting login via OAuth2 Client Credentials")
 
-            # ``simple-salesforce.SalesforceLogin`` handles the token endpoint
-            # construction, HTTP Basic authorisation header, and response parsing
-            # for this grant. Returns ``(access_token, sf_instance_host)``.
             self._access_token, host = SalesforceLogin(
                 consumer_key=self._credentials.client_id,
                 consumer_secret=self._credentials.client_secret,
@@ -204,37 +231,15 @@ class SalesforceAuthClientCredentials(SalesforceAuth):
 class SalesforceAuthBrowser(SalesforceAuth):
     """OAuth 2.0 Authorization Code Flow with PKCE (interactive browser login).
 
-    Intended for local developer execution where each dev acts as their own
-    Salesforce user. Cron / production should use
-    :class:`SalesforceAuthClientCredentials` (or the legacy
-    :class:`SalesforceAuthOAuth` for pre-obtained refresh tokens).
-
-    The first run opens a browser and caches the returned refresh token —
-    in the OS keychain if the optional ``keyring`` extra
-    (``pip install tap-salesforce[browser]``) is installed and working,
-    otherwise in a plain file at ``~/.tap-salesforce/<domain>/<client_id>.json``
-    (mode ``0600``). Subsequent runs — including headless invocations on the
-    same machine — swap the cached refresh token for a fresh access token
-    silently. If the refresh token is rejected (e.g. revoked by admin), the
-    browser step is retried.
-
-    Access tokens are short-lived, so we re-login periodically on the same
-    900s cadence as :class:`SalesforceAuthOAuth`. This uses the cached refresh
-    token silently and never re-opens the browser during normal operation.
-
-    ``redirect_uri`` is optional. If omitted, an ephemeral loopback port is
-    chosen at runtime (fine for a self-authorizing External Client App with
-    no fixed callback port). If provided and it includes a port, that exact
-    address is used — required when the App's registered callback URL pins
-    a specific port. If provided without a port, the given host/path is kept
-    and a port is still chosen dynamically and appended.
+    Intended for local developer execution. The first run opens a browser
+    for login; subsequent runs reuse the cached refresh token silently.
     """
 
     REFRESH_TOKEN_EXPIRATION_PERIOD = 900
     DEFAULT_CACHE_DIR = Path.home() / ".tap-salesforce"
 
-    def __init__(self, credentials, is_sandbox=False, cache_dir=None, redirect_uri=None):
-        super().__init__(credentials, is_sandbox=is_sandbox)
+    def __init__(self, credentials, redirect_uri=None, cache_dir=None):
+        super().__init__(credentials)
         self._cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
         self._redirect_uri = redirect_uri
 

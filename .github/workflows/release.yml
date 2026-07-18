@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    name: Tag and release (if version bumped)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check if release needed
+        id: check
+        run: |
+          VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+          TAG="dlouseiro-v${VERSION}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. No release needed."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag $TAG does not exist. Will create release."
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract changelog for this version
+        if: steps.check.outputs.needed == 'true'
+        id: notes
+        run: |
+          VERSION="${{ steps.check.outputs.version }}"
+          # Extract text between "## dlouseiro.X.Y.Z" and the next "## " header
+          NOTES=$(awk "/^## dlouseiro\.${VERSION}\$/,/^## /" CHANGELOG.md | tail -n +2 | sed '/^## /d')
+
+          # Write to file to avoid escaping issues
+          echo "$NOTES" > /tmp/release-notes.md
+          echo "notes_file=/tmp/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          git tag "${{ steps.check.outputs.tag }}"
+          git push origin "${{ steps.check.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.check.outputs.tag }}" \
+            --title "dlouseiro ${{ steps.check.outputs.version }}" \
+            --notes-file "${{ steps.notes.outputs.notes_file }}"

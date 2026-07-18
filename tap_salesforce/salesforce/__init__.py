@@ -39,10 +39,8 @@ class Salesforce:
     def __init__(
         self,
         credentials=None,
-        token=None,
         quota_percent_per_run=None,
         quota_percent_total=None,
-        is_sandbox=None,
         select_fields_by_default=None,
         default_start_date=None,
         api_type=None,
@@ -60,7 +58,6 @@ class Salesforce:
 
         self.quota_percent_per_run = float(quota_percent_per_run) if quota_percent_per_run is not None else 25
         self.quota_percent_total = float(quota_percent_total) if quota_percent_total is not None else 80
-        self.is_sandbox = is_sandbox is True or (isinstance(is_sandbox, str) and is_sandbox.lower() == "true")
         self.select_fields_by_default = select_fields_by_default is True or (
             isinstance(select_fields_by_default, str) and select_fields_by_default.lower() == "true"
         )
@@ -71,7 +68,7 @@ class Salesforce:
         self.api_version = api_version
         self.data_url = "{}/services/data/{}/{}"
 
-        self.auth = SalesforceAuth.from_credentials(credentials, is_sandbox=self.is_sandbox, redirect_uri=redirect_uri)
+        self.auth = SalesforceAuth.from_credentials(credentials, redirect_uri=redirect_uri)
 
         # Compose the HTTP client
         self._client = SalesforceClient(

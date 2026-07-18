@@ -8,6 +8,35 @@ its own independent version lineage, continuing from where this fork's
 inherited from upstream. Git tags matching each `dlouseiro.X.Y.Z` entry
 are pushed as `dlouseiro-vX.Y.Z`.
 
+## dlouseiro.4.0.0
+
+  * **Breaking:** Replace implicit credential shape detection with an explicit
+    `auth_method` config key. The tap now requires `auth_method` to be set to
+    one of: `browser`, `client_credentials`, `refresh_token`, or `password`.
+    The old "first matching shape wins" dispatch is removed entirely.
+
+  * **Breaking:** `domain` is now a required config key for ALL authentication
+    methods (previously only needed for Client Credentials and Browser flows).
+    For legacy flows that used `login.salesforce.com` or `test.salesforce.com`,
+    pass `"login"` or `"test"` as the domain value respectively.
+
+  * **Breaking:** Remove `is_sandbox` config key. Sandbox-ness is now encoded
+    in the `domain` string itself (e.g. `mycompany--uat.sandbox.my` for sandbox,
+    `mycompany.my` for production).
+
+  * **Breaking:** Remove `browser_auth` config key. Use `auth_method: browser`
+    to explicitly select the browser flow.
+
+  * Deprecate `auth_method: refresh_token` and `auth_method: password` with
+    runtime `DeprecationWarning`. These flows will be removed in a future
+    major version. Migrate to `client_credentials` (production/CI) or
+    `browser` (local dev).
+
+  * Modularize codebase: split monolithic `__init__.py` into focused modules
+    (`config.py`, `discovery.py`, `sync_orchestrator.py`, `salesforce/client.py`,
+    `salesforce/schema.py`). Wrap sync logic in `SyncService` class. Add 120+
+    new unit tests (42 → 166 total) covering all previously untested modules.
+
 ## dlouseiro.3.0.1
 
   * Fix the browser (Authorization Code + PKCE) flow silently losing its

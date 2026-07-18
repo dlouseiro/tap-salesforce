@@ -27,7 +27,7 @@ def raise_for_status(resp: requests.Response) -> None:
 
     ``CustomNotAcceptable`` (406) is ephemeral and resolved after retries.
     """
-    if resp.status_code != 200:
+    if resp.status_code >= 400:
         err_msg = f"{resp.status_code} Client Error: {resp.reason} for url: {resp.url}"
         LOGGER.warning(err_msg)
 

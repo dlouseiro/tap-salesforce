@@ -102,7 +102,7 @@ def _resolve_redirect_uri(redirect_uri: str | None) -> tuple[str, int]:
 
 
 def _token_endpoint(domain: str) -> str:
-    # ``domain`` is a Salesforce My Domain string such as ``"picnic-nl.my"`` —
+    # ``domain`` is a Salesforce My Domain string such as ``"mycompany.my"`` —
     # the ``.my`` suffix is already part of the domain, so we only append
     # ``.salesforce.com``. This matches ``simple-salesforce``'s URL construction
     # for the Client Credentials grant.

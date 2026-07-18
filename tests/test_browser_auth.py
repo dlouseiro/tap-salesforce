@@ -42,12 +42,12 @@ class PkcePairTests(unittest.TestCase):
 class EndpointTests(unittest.TestCase):
     def test_authorize_and_token_endpoints_point_at_my_domain(self):
         self.assertEqual(
-            browser_auth._authorize_endpoint("picnic-nl.my"),
-            "https://picnic-nl.my.salesforce.com/services/oauth2/authorize",
+            browser_auth._authorize_endpoint("mycompany.my"),
+            "https://mycompany.my.salesforce.com/services/oauth2/authorize",
         )
         self.assertEqual(
-            browser_auth._token_endpoint("picnic-nl.my"),
-            "https://picnic-nl.my.salesforce.com/services/oauth2/token",
+            browser_auth._token_endpoint("mycompany.my"),
+            "https://mycompany.my.salesforce.com/services/oauth2/token",
         )
 
 
@@ -164,9 +164,9 @@ class AcquireTokenTests(unittest.TestCase):
             patch.object(browser_auth, "_run_browser_flow") as mock_browser,
             patch.object(browser_auth, "store_refresh_token") as mock_store,
         ):
-            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+            token = browser_auth.acquire_token("ci", "mycompany.my", Path("/tmp/whatever"))
 
-        mock_exchange.assert_called_once_with("ci", "cached-rt", "picnic-nl.my")
+        mock_exchange.assert_called_once_with("ci", "cached-rt", "mycompany.my")
         mock_browser.assert_not_called()
         mock_store.assert_not_called()  # reusing a still-valid cached token doesn't rewrite it
         self.assertEqual(token.access_token, "at-cached")
@@ -192,10 +192,10 @@ class AcquireTokenTests(unittest.TestCase):
             patch.object(browser_auth, "_run_browser_flow") as mock_browser,
             patch.object(browser_auth, "store_refresh_token") as mock_store,
         ):
-            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+            token = browser_auth.acquire_token("ci", "mycompany.my", Path("/tmp/whatever"))
 
         mock_browser.assert_not_called()
-        mock_store.assert_called_once_with(Path("/tmp/whatever"), "picnic-nl.my", "ci", "rotated-rt")
+        mock_store.assert_called_once_with(Path("/tmp/whatever"), "mycompany.my", "ci", "rotated-rt")
         self.assertEqual(token.refresh_token, "rotated-rt")
 
     def test_does_not_rewrite_cache_when_refresh_token_is_unchanged(self):
@@ -214,7 +214,7 @@ class AcquireTokenTests(unittest.TestCase):
             ),
             patch.object(browser_auth, "store_refresh_token") as mock_store,
         ):
-            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+            token = browser_auth.acquire_token("ci", "mycompany.my", Path("/tmp/whatever"))
 
         mock_store.assert_not_called()
         self.assertEqual(token.refresh_token, "cached-rt")
@@ -237,12 +237,12 @@ class AcquireTokenTests(unittest.TestCase):
             ) as mock_browser,
             patch.object(browser_auth, "store_refresh_token") as mock_store,
         ):
-            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+            token = browser_auth.acquire_token("ci", "mycompany.my", Path("/tmp/whatever"))
 
-        mock_exchange.assert_called_once_with("ci", "stale-rt", "picnic-nl.my")
+        mock_exchange.assert_called_once_with("ci", "stale-rt", "mycompany.my")
         mock_browser.assert_called_once()
         # The freshly-obtained refresh token replaces the stale one in the cache.
-        mock_store.assert_called_once_with(Path("/tmp/whatever"), "picnic-nl.my", "ci", "fresh-rt")
+        mock_store.assert_called_once_with(Path("/tmp/whatever"), "mycompany.my", "ci", "fresh-rt")
         self.assertEqual(token.access_token, "at-fresh")
         self.assertEqual(token.refresh_token, "fresh-rt")
 
@@ -261,11 +261,11 @@ class AcquireTokenTests(unittest.TestCase):
             ) as mock_browser,
             patch.object(browser_auth, "store_refresh_token") as mock_store,
         ):
-            token = browser_auth.acquire_token("ci", "picnic-nl.my", Path("/tmp/whatever"))
+            token = browser_auth.acquire_token("ci", "mycompany.my", Path("/tmp/whatever"))
 
         mock_exchange.assert_not_called()
         mock_browser.assert_called_once()
-        mock_store.assert_called_once_with(Path("/tmp/whatever"), "picnic-nl.my", "ci", "new-rt")
+        mock_store.assert_called_once_with(Path("/tmp/whatever"), "mycompany.my", "ci", "new-rt")
         self.assertEqual(token.refresh_token, "new-rt")
 
 
