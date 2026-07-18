@@ -27,6 +27,59 @@ singer-io/tap-salesforce   (original Stitch project, last common version v1.4.24
 
 Both lineages follow semver relative to their own prior version, not to each other — a `dlouseiro.` major bump doesn't imply anything about `MeltanoLabs`' own next release, and vice versa.
 
+## Development
+
+This project uses [Poetry](https://python-poetry.org/) for dependency and
+environment management (`pyproject.toml` / `poetry.lock`), and
+[tox](https://tox.wiki/) to run the same checks CI runs — lint and the full
+test matrix across every supported Python version — in one local command,
+without hand-installing dependencies into your own environment. Neither is
+needed by end users installing the tap (see "Install the tap" below); that's
+plain `pip`.
+
+```bash
+# Clone your fork, then:
+poetry install --with dev --all-extras
+
+# Run everything CI runs, locally, in one shot:
+poetry run tox
+
+# ...or just one piece of it:
+poetry run tox -e lint      # ruff check + ruff format --check
+poetry run tox -e py312     # pytest on a specific Python version
+
+# Run the tap itself from the poetry-managed environment
+poetry run tap-salesforce --config config.json --discover > properties.json
+```
+
+`--all-extras` pulls in `keyring`, needed to exercise the browser auth
+flow's OS-keychain path. `--with dev` pulls in `pytest`, `ruff`, `tox`, and
+`pre-commit`. `.github/workflows/ci.yml` runs the exact same `tox`
+environments on every push/PR to `main`, across Python 3.10–3.13
+(`tox.ini` is the single source of truth for what "passing" means, shared
+by CI and local runs).
+
+**If you use `pyenv`:** `tox` needs each Python version's interpreter
+directly resolvable (e.g. `python3.12` on `PATH`), which a single active
+`pyenv local` version won't provide for the others. Run
+`pyenv local 3.10.x 3.11.x 3.12.x 3.13.x` (your closest installed patch
+versions) in the repo root so `tox` can find all four; otherwise it
+silently skips whichever ones it can't find (`skip_missing_interpreters`
+is enabled in `tox.ini`, so this doesn't fail the run — just narrows what
+actually gets checked locally).
+
+### Git hooks (optional but recommended)
+
+```bash
+poetry run pre-commit install --hook-type pre-commit --hook-type pre-push
+```
+
+Wires up two speeds of check automatically:
+- **On every `git commit`** — `ruff check --fix`, `ruff format`, and a few
+  basic file hygiene checks (fast, seconds).
+- **On every `git push`** — the full `tox` suite (slower; this is what
+  used to mean manually remembering to run everything before pushing).
+
 # Quickstart
 
 ## Install the tap
