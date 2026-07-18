@@ -6,6 +6,9 @@ login page). We cover the helpers that are testable in isolation.
 
 import base64
 import hashlib
+import http.client
+import http.server
+import threading
 import unittest
 
 from tap_salesforce.salesforce import browser_auth
@@ -68,6 +71,75 @@ class ResolveRedirectUriTests(unittest.TestCase):
         resolved, port = browser_auth._resolve_redirect_uri("https://my-proxy-host:9999/callback")
         self.assertEqual(resolved, "https://my-proxy-host:9999/callback")
         self.assertEqual(port, 9999)
+
+
+class CallbackHandlerTests(unittest.TestCase):
+    """Exercises the real _CallbackHandler + HTTPServer (no mocking).
+
+    Regression coverage for a race where a browser's automatic follow-up
+    request to the callback origin (e.g. /favicon.ico, which carries no
+    query string) could arrive and be processed before the real OAuth
+    callback was read, silently overwriting server.oauth_result and
+    producing a false "state mismatch" failure.
+    """
+
+    def _make_server(self):
+        server = http.server.HTTPServer(("127.0.0.1", 0), browser_auth._CallbackHandler)
+        server.oauth_result = None
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
+    def _get(self, port, path):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            conn.request("GET", path)
+            resp = conn.getresponse()
+            resp.read()
+            return resp.status
+        finally:
+            conn.close()
+
+    def test_stray_request_without_code_or_error_is_ignored(self):
+        server, thread = self._make_server()
+        try:
+            status = self._get(server.server_address[1], "/favicon.ico")
+            self.assertEqual(status, 404)
+            self.assertIsNone(server.oauth_result)
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+    def test_real_callback_is_captured(self):
+        server, thread = self._make_server()
+        try:
+            status = self._get(server.server_address[1], "/callback?code=abc123&state=xyz")
+            self.assertEqual(status, 200)
+            self.assertEqual(server.oauth_result, {"code": "abc123", "state": "xyz"})
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+    def test_stray_request_after_real_callback_does_not_overwrite_it(self):
+        server, thread = self._make_server()
+        try:
+            port = server.server_address[1]
+            self._get(port, "/callback?code=abc123&state=xyz")
+            self._get(port, "/favicon.ico")
+            self.assertEqual(server.oauth_result, {"code": "abc123", "state": "xyz"})
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+    def test_error_callback_is_captured(self):
+        server, thread = self._make_server()
+        try:
+            status = self._get(server.server_address[1], "/callback?error=access_denied")
+            self.assertEqual(status, 200)
+            self.assertEqual(server.oauth_result, {"error": "access_denied"})
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
 
 
 if __name__ == "__main__":

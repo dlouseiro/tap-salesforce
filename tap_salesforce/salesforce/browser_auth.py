@@ -113,17 +113,35 @@ def _authorize_endpoint(domain: str) -> str:
 
 
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
-    """Single-shot handler that captures the OAuth redirect query string."""
+    """Single-shot handler that captures the OAuth redirect query string.
+
+    Browsers commonly issue a follow-up request to the just-loaded origin
+    (e.g. an automatic ``/favicon.ico`` fetch) right after the real OAuth
+    redirect lands. Since ``http.server.HTTPServer`` handles one request at
+    a time, that follow-up request could arrive before the polling loop in
+    ``_run_browser_flow`` reads ``server.oauth_result`` — silently
+    overwriting the real ``code``/``state`` with an empty result and
+    producing a false "state mismatch" failure. To avoid that, only a
+    request that actually carries ``code`` or ``error`` is treated as the
+    OAuth callback; anything else is answered with a bare 404 and ignored.
+    """
 
     def do_GET(self):  # http.server contract mandates this method name
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
         # ``parse_qs`` returns list values; we only ever expect one of each.
-        self.server.oauth_result = {k: v[0] for k, v in params.items()}
+        result = {k: v[0] for k, v in params.items()}
+
+        if "code" not in result and "error" not in result:
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        self.server.oauth_result = result
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
-        if "code" in self.server.oauth_result:
+        if "code" in result:
             body = (
                 b"<html><body style='font-family:sans-serif;padding:2em'>"
                 b"<h1>Login successful</h1>"
