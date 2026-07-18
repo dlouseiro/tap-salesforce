@@ -27,6 +27,33 @@ singer-io/tap-salesforce   (original Stitch project, last common version v1.4.24
 
 Both lineages follow semver relative to their own prior version, not to each other — a `dlouseiro.` major bump doesn't imply anything about `MeltanoLabs`' own next release, and vice versa.
 
+## Development
+
+This project uses [Poetry](https://python-poetry.org/) for dependency and
+environment management (`pyproject.toml` / `poetry.lock`). It's only needed
+for local development — end users installing the tap (see "Install the tap"
+below) just use `pip`.
+
+```bash
+# Clone your fork, then:
+poetry install --with dev --all-extras
+
+# Run the test suite
+poetry run pytest tests/
+
+# Lint / format check
+poetry run ruff check tap_salesforce tests
+poetry run ruff format --check tap_salesforce tests
+
+# Run the tap itself from the poetry-managed environment
+poetry run tap-salesforce --config config.json --discover > properties.json
+```
+
+`--all-extras` pulls in `keyring`, needed to exercise the browser auth
+flow's OS-keychain path. `--with dev` pulls in `pytest` and `ruff`. CI
+(`.github/workflows/ci.yml`) runs the same commands on every push/PR to
+`main`, across Python 3.10–3.13.
+
 # Quickstart
 
 ## Install the tap
