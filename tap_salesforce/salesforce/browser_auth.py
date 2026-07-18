@@ -8,10 +8,10 @@ This module implements the interactive half of a Salesforce OAuth flow:
    (port and/or host) to match a statically-registered callback URL.
 3. Exchange the authorization code (PKCE-protected) at
    ``/services/oauth2/token`` for an access + refresh token pair.
-4. Cache the refresh token via :mod:`tap_salesforce.salesforce.token_cache` so
-   subsequent runs (including headless ones on the same laptop) can silently
-   swap the refresh token for a fresh access token without re-opening the
-   browser.
+4. Cache the refresh token via :mod:`tap_salesforce.salesforce.token_cache`
+   (OS keychain when available, plain file otherwise) so subsequent runs
+   (including headless ones on the same laptop) can silently swap the
+   refresh token for a fresh access token without re-opening the browser.
 
 The implementation deliberately uses only the Python standard library plus
 ``requests`` (already a hard dependency of the tap) — matching the

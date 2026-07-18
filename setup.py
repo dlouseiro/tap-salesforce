@@ -20,6 +20,13 @@ setup(
         "cryptography",
         "pyOpenSSL",
     ],
+    extras_require={
+        # Only needed for the interactive browser (Authorization Code + PKCE)
+        # auth flow. Lets the refresh-token cache use the OS keychain instead
+        # of a plain file. Cron/prod installs using Client Credentials or the
+        # legacy password flow never need this.
+        "browser": ["keyring"],
+    },
     entry_points="""
           [console_scripts]
           tap-salesforce=tap_salesforce:main

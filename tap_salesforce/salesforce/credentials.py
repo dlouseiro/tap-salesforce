@@ -209,12 +209,14 @@ class SalesforceAuthBrowser(SalesforceAuth):
     :class:`SalesforceAuthClientCredentials` (or the legacy
     :class:`SalesforceAuthOAuth` for pre-obtained refresh tokens).
 
-    The first run opens a browser and caches the returned refresh token to
-    ``~/.tap-salesforce/<domain>/<client_id>.json`` (mode ``0600``).
-    Subsequent runs — including headless invocations on the same machine —
-    swap the cached refresh token for a fresh access token silently. If the
-    refresh token is rejected (e.g. revoked by admin), the browser step is
-    retried.
+    The first run opens a browser and caches the returned refresh token —
+    in the OS keychain if the optional ``keyring`` extra
+    (``pip install tap-salesforce[browser]``) is installed and working,
+    otherwise in a plain file at ``~/.tap-salesforce/<domain>/<client_id>.json``
+    (mode ``0600``). Subsequent runs — including headless invocations on the
+    same machine — swap the cached refresh token for a fresh access token
+    silently. If the refresh token is rejected (e.g. revoked by admin), the
+    browser step is retried.
 
     Access tokens are short-lived, so we re-login periodically on the same
     900s cadence as :class:`SalesforceAuthOAuth`. This uses the cached refresh
