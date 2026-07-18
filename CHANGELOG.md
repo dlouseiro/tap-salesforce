@@ -1,6 +1,14 @@
 # Changelog
 
-## meltano.1.8.0
+Entries prefixed `dlouseiro.` are releases of this personal fork
+(`dlouseiro/tap-salesforce`) that never went upstream to MeltanoLabs —
+its own independent version lineage, continuing from where this fork's
+`setup.py` last matched upstream (`v1.9.0` / `meltano.1.5.0`, tagged
+`v1.9.0`). Entries prefixed `meltano.` (or unprefixed, further below) are
+inherited from upstream. Git tags matching each `dlouseiro.X.Y.Z` entry
+are pushed as `dlouseiro-vX.Y.Z`.
+
+## dlouseiro.3.0.1
 
   * Fix the browser (Authorization Code + PKCE) flow silently losing its
     cached refresh token when Salesforce rotates it. On a cache-hit
@@ -13,10 +21,10 @@
     Now persists the rotated token when one is returned, and leaves the
     cache untouched when the token comes back unchanged.
 
-## meltano.1.7.0
+## dlouseiro.3.0.0
 
-  * Raise the minimum supported Python version to **3.10** (from an
-    unenforced, undeclared floor). `setup.py` now declares
+  * **Breaking:** raise the minimum supported Python version to **3.10**
+    (from an unenforced, undeclared floor). `setup.py` now declares
     `python_requires=">=3.10"`. Verified against 3.10, 3.11, 3.12, and 3.13
     (a full test-suite run + a real end-to-end sync against a Salesforce
     sandbox on each).
@@ -47,7 +55,14 @@
     malformed/truncated rows rather than silently changing it to a hard
     failure).
 
-## meltano.1.6.0
+## dlouseiro.2.5.1
+
+  * Add test coverage for `acquire_token`'s cache-hit / cache-hit-rejected
+    / cache-miss branches (previously untested — only lower-level pieces
+    like PKCE math and endpoint construction had coverage). No production
+    behaviour change.
+
+## dlouseiro.2.5.0
 
   * Upgrade `simple-salesforce` from `<1.0` to `~=1.12`. Adapted the
     `SalesforceLogin` call in the legacy password path from the removed
@@ -64,6 +79,57 @@
     (mode `0600`), and re-uses it silently on subsequent runs. Intended for
     local developer machines. Implemented with stdlib + `requests` only
     (no new runtime dependencies).
+
+## dlouseiro.2.4.1
+
+  * Fix response handling error: a failed Bulk API 2.0 job status check
+    called `.json()` on an already-parsed response object instead of the
+    raw HTTP response, masking the real failure reason behind an
+    `AttributeError`.
+
+## dlouseiro.2.4.0
+
+  * Add a `soql_filters` config option: per-object SOQL filter conditions
+    that are appended to the generated `WHERE` clause alongside the
+    replication-key window. Backward-compatible (defaults to none).
+
+## dlouseiro.2.3.0
+
+  * Add an `api_version` config option, replacing a previously-hardcoded
+    Salesforce API version constant. Backward-compatible (defaults to the
+    prior hardcoded value). Includes follow-up fixes to the Bulk API call
+    and API-version string formatting made over the following week, plus
+    an unrelated code-formatting cleanup.
+
+## dlouseiro.2.2.0
+
+  * Add an `ignore_formula_fields` config option to exclude Salesforce
+    formula fields from synchronization (they don't reliably trigger
+    `LastModifiedDate` updates, which can cause incremental syncs to miss
+    changes). Backward-compatible (defaults to `false`). An initial,
+    same-day version also ignored lookup fields; that part was reverted
+    before this reached upstream, leaving only formula-field exclusion.
+
+## dlouseiro.2.1.0
+
+  * Add a `lookback_window` config option (in seconds): subtracts the
+    given duration from the replication bookmark before querying, to
+    re-fetch a small overlap window and guard against clock-skew/timing
+    edge cases at incremental sync boundaries. Backward-compatible
+    (defaults to no lookback).
+
+## dlouseiro.2.0.0
+
+  * Baseline reset: this is the first version in the `dlouseiro.` fork
+    lineage, encompassing all fork-specific changes up to this point that
+    had never previously been tagged or changelogged:
+    - Exclude compound fields from Bulk API queries (unsupported by that
+      API).
+    - Exclude location fields from Bulk API queries (unsupported by that
+      API).
+    - Default loose-type fields (`anyType`, `calculated`) to string type
+      instead of leaving them typeless.
+    - Add `.idea/` to `.gitignore`.
 
 ## meltano.1.5.0
 
