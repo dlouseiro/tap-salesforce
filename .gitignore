@@ -100,3 +100,12 @@ config.json
 .autoenv.zsh
 
 *~
+
+# Meltano e2e test
+.meltano/
+output/
+*.duckdb
+*.duckdb.wal
+
+# Library — consumers resolve their own deps
+poetry.lock
